@@ -157,7 +157,7 @@ router.get('/bookings', async (req, res) => {
     else if (filters.length > 1) filterExpr = `AND(${filters.join(',')})`;
 
     const sortQS = '&sort%5B0%5D%5Bfield%5D=SelectedSlot&sort%5B0%5D%5Bdirection%5D=asc';
-    const filterQS = filterExpr ? `?filterByFormula=${encodeURIComponent(filterExpr)}&pageSize=200${sortQS}` : `?pageSize=200${sortQS}`;
+    const filterQS = filterExpr ? `?filterByFormula=${encodeURIComponent(filterExpr)}&pageSize=100${sortQS}` : `?pageSize=100${sortQS}`;
 
     const data = await airtable('GET', bookings, filterQS);
     const recs = data.records || [];
