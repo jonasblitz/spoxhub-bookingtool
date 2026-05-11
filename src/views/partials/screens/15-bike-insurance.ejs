@@ -1,0 +1,32 @@
+<section class="screen-panel is-hidden" data-screen="bike-insurance">
+  <h2 class="screen-panel__question">Ist dein Rad versichert?</h2>
+  <p class="screen-panel__hint">Damit wir bei Bedarf direkt mit deiner Versicherung abrechnen können.</p>
+
+  <div class="space-y-4">
+    <label class="checkbox-row">
+      <input type="checkbox" id="b-is-versichert" class="checkbox-input" onchange="toggleBikeSection('versicherung', this.checked)">
+      <span class="checkbox-label">Ja, ist versichert</span>
+    </label>
+
+    <div class="grid grid-cols-1 gap-y-4 hidden" id="versicherung-fields">
+      <div class="form-group">
+        <label class="form-label !text-base !font-body !text-text-secondary" for="b-versicherung-company">Versicherung</label>
+        <input type="text" id="b-versicherung-company" class="form-input"
+               placeholder="z.B. Wertgarantie, Enra"
+               data-field="bike.versicherung" oninput="updateCustomerField(this)">
+      </div>
+      <div class="form-group">
+        <label class="form-label !text-base !font-body !text-text-secondary" for="b-versicherung-nr">Vertragsnummer</label>
+        <input type="text" id="b-versicherung-nr" class="form-input"
+               placeholder="Vertragsnummer"
+               data-field="bike.versicherungNr" oninput="updateCustomerField(this)">
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-footer">
+    <div class="screen-footer__inner">
+      <button type="button" class="btn-cta" onclick="flowNext()">Weiter</button>
+    </div>
+  </div>
+</section>

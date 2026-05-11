@@ -1,0 +1,25 @@
+<section class="screen-panel is-hidden" data-screen="bike-model-color">
+  <h2 class="screen-panel__question">Modell & Rahmennummer</h2>
+  <p class="screen-panel__hint">Details helfen uns, dein Rad schnell zu erkennen. <span class="text-text-muted">(optional)</span></p>
+
+  <div class="space-y-5">
+    <div class="form-group">
+      <label class="form-label !text-base !font-body !text-text-secondary" for="b-modell">Modell</label>
+      <input type="text" id="b-modell" class="form-input"
+             placeholder="z.B. Endurace CF 7"
+             data-field="bike.modell" oninput="updateCustomerField(this)">
+    </div>
+    <div class="form-group">
+      <label class="form-label !text-base !font-body !text-text-secondary" for="b-rahmen">Rahmennummer</label>
+      <input type="text" id="b-rahmen" class="form-input"
+             data-field="bike.rahmennummer" oninput="updateCustomerField(this)">
+    </div>
+  </div>
+
+  <div class="screen-footer">
+    <div class="screen-footer__inner">
+      <button type="button" class="btn-cta" onclick="flowNext()">Weiter</button>
+      <a class="screen-skip" onclick="flowSkip()">Überspringen</a>
+    </div>
+  </div>
+</section>

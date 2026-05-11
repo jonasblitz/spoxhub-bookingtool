@@ -1,0 +1,42 @@
+<section class="screen-panel is-hidden" data-screen="problem-description">
+  <h2 class="screen-panel__question">Noch etwas, das wir wissen sollten?</h2>
+  <p class="screen-panel__hint">Beschreibe dein Problem so gut wie möglich — das hilft uns bei der Vorbereitung. <span class="text-text-muted">(optional)</span></p>
+
+  <div class="space-y-5">
+    <div class="form-group">
+      <textarea id="problem-description" class="form-input !h-28 !resize-y"
+                placeholder="z.B. Bremse quietscht beim Rückwärtsfahren, Schaltung springt unter Last..."
+                data-field="problemDescription"
+                oninput="BookingState.set('problemDescription', this.value)"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label !text-base !font-body !text-text-secondary">
+        Fotos oder Videos vom Problem
+      </label>
+      <div id="upload-dropzone" class="upload-dropzone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" class="hidden" multiple
+               accept="image/*,video/*" onchange="handleFileSelect(this.files)">
+        <div class="upload-dropzone__content">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+               class="mx-auto mb-2 text-text-muted">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span class="text-sm text-text-muted">Klicken oder Dateien hierher ziehen</span>
+          <span class="text-xs text-text-muted mt-1">Max. 20 MB pro Datei</span>
+        </div>
+      </div>
+      <div id="upload-preview" class="upload-preview mt-3 hidden"></div>
+    </div>
+  </div>
+
+  <div class="screen-footer">
+    <div class="screen-footer__inner">
+      <button type="button" class="btn-cta" onclick="flowNext()">Weiter</button>
+      <a class="screen-skip" onclick="flowSkip()">Überspringen</a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpoxHub Booking — Iframe-Embed Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 920px; margin: 40px auto; padding: 0 20px; line-height: 1.5; color: #1a1a1a; }
+    h1 { font-size: 1.6rem; }
+    h2 { margin-top: 2rem; font-size: 1.15rem; color: #444; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; }
+    pre { background: #f4f4f7; padding: 14px 18px; border-radius: 8px; overflow-x: auto; }
+    .demo { margin: 30px 0; padding: 20px; background: #fafafa; border: 1px solid #e3e3e3; border-radius: 12px; }
+    p.note { color: #666; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+
+<h1>SpoxHub Booking — Iframe-Embed</h1>
+<p>Du hast zwei Möglichkeiten, das Buchungs-Tool in deine Seite einzubinden:</p>
+
+<h2>Variante 1 — Loader-Skript (empfohlen, mit Auto-Resize)</h2>
+<p>Das iframe wächst automatisch mit dem Inhalt mit, kein innerer Scrollbalken.</p>
+
+<pre><code>&lt;!-- SpoxHub Booking Tool --&gt;
+&lt;div id="spoxhub-booking"&gt;&lt;/div&gt;
+&lt;script src="https://spoxhub.io/booking/embed.js"
+        data-target="#spoxhub-booking"
+        data-min-height="700"
+        async&gt;&lt;/script&gt;</code></pre>
+
+<p class="note">
+  <strong>Optionen:</strong>
+  <code>data-target</code> — CSS-Selector des Containers (sonst direkt nach dem &lt;script&gt;).<br>
+  <code>data-min-height</code> — Mindesthöhe in Pixel (Default 700).
+</p>
+
+<div class="demo">
+  <h3>Live-Demo</h3>
+  <div id="spoxhub-booking"></div>
+  <script src="/booking/embed.js"
+          data-target="#spoxhub-booking"
+          data-min-height="700"
+          async></script>
+</div>
+
+<h2>Variante 2 — Statisches iframe (ohne Auto-Resize)</h2>
+<p>Einfacher, aber: feste Höhe → ggf. innerer Scrollbalken.</p>
+
+<pre><code>&lt;iframe src="https://spoxhub.io/booking/"
+        style="width:100%;border:0;min-height:900px"
+        title="Termin buchen"
+        allow="payment"
+        loading="lazy"&gt;&lt;/iframe&gt;</code></pre>
+
+<h2>WordPress / Elementor / etc.</h2>
+<p>Beide Snippets gehören in einen <em>HTML</em>- oder <em>Custom-Code</em>-Block.
+Manche Page-Builder erlauben kein <code>&lt;script&gt;</code> — dann nimm das statische iframe.</p>
+
+</body>
+</html>

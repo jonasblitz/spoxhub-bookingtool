@@ -1,0 +1,109 @@
+<section class="screen-panel is-hidden" data-screen="payment">
+  <h2 class="screen-panel__question">Anzahlung für deine Reservierung</h2>
+  <p class="screen-panel__hint">Zahle 20 € jetzt an — der Betrag wird von deiner Rechnung abgezogen.</p>
+
+  <div class="sidebar-card !p-5">
+    <!-- Preisübersicht (kompakt) -->
+    <div id="price-summary-lines" class="space-y-2 text-sm"></div>
+    <div class="border-t border-purple-600 my-4"></div>
+    <div class="price-total text-base">
+      <span>Geschätzter Gesamtpreis</span>
+      <span id="price-summary-total">0,00 €</span>
+    </div>
+    <p class="text-text-muted text-xs mt-2">
+      Am Ende zahlst du nur das, was wir auch reparieren.
+    </p>
+  </div>
+
+  <div class="sidebar-card !p-5 mt-4">
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-white font-body text-sm">Anzahlung zur Reservierung</span>
+      <span class="text-neon-lime font-body font-bold text-lg">20,00 €</span>
+    </div>
+
+    <!-- Consent Checkboxen -->
+    <div class="consent-block space-y-3 mb-5" id="consent-block">
+      <label class="checkbox-row consent-check">
+        <input type="checkbox" class="checkbox-input" id="consent-agb" onchange="updateConsentState()">
+        <span class="checkbox-label">
+          Ich akzeptiere die
+          <a href="<%= agbUrl %>" target="_blank" rel="noopener" class="consent-link">AGB</a>
+          <span class="text-state-danger">*</span>
+        </span>
+      </label>
+      <label class="checkbox-row consent-check">
+        <input type="checkbox" class="checkbox-input" id="consent-privacy" onchange="updateConsentState()">
+        <span class="checkbox-label">
+          Ich akzeptiere die
+          <a href="<%= privacyUrl %>" target="_blank" rel="noopener" class="consent-link">Datenschutzerklärung</a>
+          <span class="text-state-danger">*</span>
+        </span>
+      </label>
+      <label class="checkbox-row consent-check">
+        <input type="checkbox" class="checkbox-input" id="consent-newsletter" checked onchange="updateConsentState()">
+        <span class="checkbox-label">
+          Ich möchte den Newsletter erhalten <span class="text-text-muted">(jederzeit kündbar)</span>
+        </span>
+      </label>
+      <label class="checkbox-row consent-check">
+        <input type="checkbox" class="checkbox-input" id="consent-feedback" checked onchange="updateConsentState()">
+        <span class="checkbox-label">
+          Ich möchte nach dem Termin um Feedback gebeten werden
+        </span>
+      </label>
+    </div>
+
+    <div id="paypal-button-container"></div>
+
+    <!-- Voucher / Gutscheincode (für interne Tests & Comp-Buchungen) -->
+    <div id="voucher-block" class="mt-4">
+      <button type="button"
+              id="voucher-toggle"
+              class="text-text-muted hover:text-white text-xs underline"
+              onclick="toggleVoucherInput()">
+        Ich habe einen Gutscheincode
+      </button>
+
+      <div id="voucher-input-wrap" class="hidden mt-3 space-y-3">
+        <input type="text"
+               id="voucher-code"
+               placeholder="Code eingeben"
+               autocomplete="off"
+               class="form-input">
+        <p id="voucher-error" class="hidden text-state-danger text-xs"></p>
+        <button type="button"
+                id="voucher-redeem"
+                class="btn-cta w-full"
+                onclick="redeemVoucherFromInput()">
+          Einlösen
+        </button>
+        <p class="text-text-muted text-xs">
+          Nur für interne Tests: Anzahlung wird als bezahlt markiert, es fließt kein Geld.
+        </p>
+      </div>
+    </div>
+
+    <!-- Spinner während PayPal-Capture + eTermin-Buchung (eine Phase, nicht zwei).
+         Bleibt sichtbar bis flow zur Confirmation springt. -->
+    <div id="payment-processing" class="hidden text-center py-3">
+      <div class="inline-block w-6 h-6 border-2 border-neon-lime border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-text-muted mt-2 text-sm">Zahlung wird verarbeitet & Termin gebucht…</p>
+    </div>
+
+    <div id="payment-error" class="hidden">
+      <div class="info-badge !bg-state-danger/10 !border-state-danger !p-3">
+        <span class="info-badge__check text-state-danger">!</span>
+        <span id="payment-error-msg" class="text-state-danger text-sm">Zahlung fehlgeschlagen.</span>
+      </div>
+    </div>
+    <div id="payment-booking-error" class="hidden mt-3">
+      <div class="info-badge !bg-state-danger/10 !border-state-danger !p-3 mb-3">
+        <span class="info-badge__check text-state-danger">!</span>
+        <span id="payment-booking-error-msg" class="text-state-danger text-sm">Buchung fehlgeschlagen — bitte erneut versuchen.</span>
+      </div>
+      <button type="button" class="btn-cta" onclick="window.confirmBooking().catch(e => showPaymentState('booking-error', e.message))">
+        Buchung erneut versuchen
+      </button>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,283 @@
+{
+  "version": "1.0",
+  "bereiche": [
+    {
+      "id": "inspektion",
+      "name": "Inspektion",
+      "icon": "clipboard-check",
+      "sortOrder": 1,
+      "leistungen": [
+        {
+          "id": "inspektion-basis",
+          "name": "Basis-Inspektion",
+          "description": "Sicherheitscheck aller Komponenten, Bremsen, Licht, Reifen",
+          "basePrice": 49.00,
+          "baseDuration": 45,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 15, "priceFactor": 1.0, "durationFactor": 1.3 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.1 },
+            "C": { "priceFactor": 1.25 }
+          },
+          "materialsIncluded": true
+        },
+        {
+          "id": "inspektion-premium",
+          "name": "Premium-Inspektion",
+          "description": "Umfassender Check inkl. Diagnosesoftware, Drehmomente, Verschleißmessung",
+          "basePrice": 89.00,
+          "baseDuration": 75,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 10, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 25, "priceFactor": 1.0, "durationFactor": 1.3 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.1 },
+            "C": { "priceFactor": 1.25 }
+          },
+          "materialsIncluded": true
+        }
+      ]
+    },
+    {
+      "id": "bremsen",
+      "name": "Bremsen",
+      "icon": "hand-raised",
+      "sortOrder": 2,
+      "leistungen": [
+        {
+          "id": "bremsen-belaege",
+          "name": "Bremsbeläge wechseln",
+          "description": "Austausch der Bremsbeläge vorne und hinten",
+          "basePrice": 35.00,
+          "baseDuration": 30,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 10, "priceFactor": 1.0, "durationFactor": 1.2 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.1 },
+            "C": { "priceFactor": 1.2 }
+          },
+          "materialsIncluded": false
+        },
+        {
+          "id": "bremsen-scheibe",
+          "name": "Bremsscheibe wechseln",
+          "description": "Austausch einer Bremsscheibe inkl. Einstellung",
+          "basePrice": 25.00,
+          "baseDuration": 25,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 5, "priceFactor": 1.0, "durationFactor": 1.1 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.1 },
+            "C": { "priceFactor": 1.2 }
+          },
+          "materialsIncluded": false
+        },
+        {
+          "id": "bremsen-entlueften",
+          "name": "Bremse entlüften",
+          "description": "Hydraulische Bremsanlage entlüften und Bremsflüssigkeit wechseln",
+          "basePrice": 30.00,
+          "baseDuration": 30,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 5, "priceFactor": 1.0, "durationFactor": 1.1 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.05 },
+            "C": { "priceFactor": 1.15 }
+          },
+          "materialsIncluded": true
+        }
+      ]
+    },
+    {
+      "id": "antrieb",
+      "name": "Antrieb",
+      "icon": "cog",
+      "sortOrder": 3,
+      "leistungen": [
+        {
+          "id": "antrieb-kette",
+          "name": "Kette wechseln",
+          "description": "Kettenverschleiß prüfen und Kette ersetzen",
+          "basePrice": 20.00,
+          "baseDuration": 20,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 5, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 10, "priceFactor": 1.0, "durationFactor": 1.2 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.1 },
+            "C": { "priceFactor": 1.2 }
+          },
+          "materialsIncluded": false
+        },
+        {
+          "id": "antrieb-ritzel",
+          "name": "Ritzel / Kassette wechseln",
+          "description": "Austausch der Kassette / des Ritzels",
+          "basePrice": 25.00,
+          "baseDuration": 25,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 5, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 10, "priceFactor": 1.0, "durationFactor": 1.2 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.1 },
+            "C": { "priceFactor": 1.2 }
+          },
+          "materialsIncluded": false
+        },
+        {
+          "id": "antrieb-schaltung",
+          "name": "Schaltung einstellen",
+          "description": "Schaltwerk und Umwerfer justieren, Züge prüfen",
+          "basePrice": 25.00,
+          "baseDuration": 20,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 5, "priceFactor": 1.0, "durationFactor": 1.1 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.05 },
+            "C": { "priceFactor": 1.1 }
+          },
+          "materialsIncluded": true
+        }
+      ]
+    },
+    {
+      "id": "reifen",
+      "name": "Reifen & Laufräder",
+      "icon": "circle",
+      "sortOrder": 4,
+      "leistungen": [
+        {
+          "id": "reifen-wechsel",
+          "name": "Reifen wechseln",
+          "description": "Mantel und/oder Schlauch wechseln (pro Rad)",
+          "basePrice": 18.00,
+          "baseDuration": 20,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 8, "priceFactor": 1.0, "durationFactor": 1.3 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.05 },
+            "C": { "priceFactor": 1.1 }
+          },
+          "materialsIncluded": false
+        },
+        {
+          "id": "reifen-plattfuss",
+          "name": "Plattfuß reparieren",
+          "description": "Schlauch flicken oder ersetzen",
+          "basePrice": 15.00,
+          "baseDuration": 15,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 5, "priceFactor": 1.0, "durationFactor": 1.2 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.0 },
+            "C": { "priceFactor": 1.1 }
+          },
+          "materialsIncluded": false
+        },
+        {
+          "id": "reifen-zentrieren",
+          "name": "Laufrad zentrieren",
+          "description": "Laufrad auf Rundlauf und Seitenschlag prüfen und nachzentrieren",
+          "basePrice": 22.00,
+          "baseDuration": 25,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 5, "priceFactor": 1.0, "durationFactor": 1.1 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.05 },
+            "C": { "priceFactor": 1.1 }
+          },
+          "materialsIncluded": true
+        }
+      ]
+    },
+    {
+      "id": "elektrik",
+      "name": "Elektrik & Motor",
+      "icon": "bolt",
+      "sortOrder": 5,
+      "leistungen": [
+        {
+          "id": "elektrik-diagnose",
+          "name": "Fehlerdiagnose Motor/Akku",
+          "description": "Auslesen der Fehlercodes, Diagnose des Antriebssystems",
+          "basePrice": 39.00,
+          "baseDuration": 30,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 10, "priceFactor": 1.0, "durationFactor": 1.2 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.15 },
+            "C": { "priceFactor": 1.3 }
+          },
+          "materialsIncluded": true
+        },
+        {
+          "id": "elektrik-update",
+          "name": "Software-Update Motor",
+          "description": "Firmware-Update des Motorsystems (Bosch, Shimano, etc.)",
+          "basePrice": 29.00,
+          "baseDuration": 20,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 5, "priceFactor": 1.0, "durationFactor": 1.0 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.1 },
+            "C": { "priceFactor": 1.2 }
+          },
+          "materialsIncluded": true
+        },
+        {
+          "id": "elektrik-display",
+          "name": "Display / Bedieneinheit tauschen",
+          "description": "Austausch des Displays oder der Bedieneinheit am Lenker",
+          "basePrice": 30.00,
+          "baseDuration": 25,
+          "vehicleModifiers": {
+            "ebike": { "priceAdd": 0, "priceFactor": 1.0, "durationFactor": 1.0 },
+            "cargobike": { "priceAdd": 10, "priceFactor": 1.0, "durationFactor": 1.1 }
+          },
+          "bidexModifiers": {
+            "A": { "priceFactor": 1.0 },
+            "B": { "priceFactor": 1.1 },
+            "C": { "priceFactor": 1.2 }
+          },
+          "materialsIncluded": false
+        }
+      ]
+    }
+  ]
+}

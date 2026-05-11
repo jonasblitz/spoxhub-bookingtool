@@ -1,0 +1,173 @@
+<section class="step-panel is-hidden" data-step="2">
+  <div class="space-y-10">
+
+    <!-- ══════════════════════════════════════
+         Ansicht 1: Was können wir für dich tun?
+         ══════════════════════════════════════ -->
+    <div id="catalog-choose-type" class="form-section">
+      <h2 class="section-heading">Was können wir für dich tun?</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button type="button" class="service-card" onclick="selectServiceType('inspektion')">
+          <span class="service-card__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+            </svg>
+          </span>
+          <span class="service-card__label">Inspektion</span>
+        </button>
+        <button type="button" class="service-card" onclick="selectServiceType('reparatur')">
+          <span class="service-card__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </span>
+          <span class="service-card__label">Reparatur</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         Ansicht 2a: Inspektion wählen
+         ══════════════════════════════════════ -->
+    <div id="catalog-inspektion" class="form-section hidden">
+      <h2 class="section-heading">Welche Inspektion?</h2>
+      <div id="inspektion-options" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <!-- Dynamisch gefüllt von catalog.js -->
+      </div>
+
+      <!-- Frage: Zusätzliche Reparatur? -->
+      <div id="inspektion-followup" class="hidden mt-8">
+        <h2 class="section-heading">Braucht dein Rad zusätzlich eine Reparatur?</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button type="button" class="service-card" onclick="answerRepairNeeded(true)">
+            <span class="service-card__icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+            </span>
+            <span class="service-card__label">Ja</span>
+          </button>
+          <button type="button" class="service-card" onclick="answerRepairNeeded(false)">
+            <span class="service-card__icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </span>
+            <span class="service-card__label">Nein, nur Inspektion</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         Ansicht 2b: Weißt du schon...?
+         ══════════════════════════════════════ -->
+    <div id="catalog-know-what" class="form-section hidden">
+      <h2 class="section-heading">Weißt du schon, was wir machen müssen?</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button type="button" class="service-card" onclick="answerKnowWhat(true)">
+          <span class="service-card__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+          </span>
+          <span class="service-card__label">Ja, ich weiß was ich brauche</span>
+        </button>
+        <div class="service-card opacity-50 cursor-not-allowed relative">
+          <span class="service-card__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </span>
+          <span class="service-card__label">Nein, hilf mir!</span>
+          <span class="absolute top-2 right-2 bg-neon-lime/20 text-neon-lime text-xs px-2 py-1 rounded-full font-body">Bald verfügbar</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         Ansicht 3: Katalog-Auswahl (Reparatur)
+         ══════════════════════════════════════ -->
+    <div id="catalog-repair" class="form-section hidden">
+      <h2 class="section-heading">Was braucht dein Rad?</h2>
+      <div id="repair-accordion" class="space-y-3">
+        <!-- Dynamisch: Akkordeon mit Kategorien + Leistungen -->
+      </div>
+
+      <!-- Frage: Noch etwas? -->
+      <div id="repair-followup" class="hidden mt-8">
+        <h2 class="section-heading">Braucht dein Rad noch etwas?</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button type="button" class="service-card" onclick="answerMoreNeeded(true)">
+            <span class="service-card__icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+            </span>
+            <span class="service-card__label">Ja, noch etwas</span>
+          </button>
+          <button type="button" class="service-card" onclick="answerMoreNeeded(false)">
+            <span class="service-card__icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+            </span>
+            <span class="service-card__label">Nein, das reicht</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Problembeschreibung + Upload -->
+    <div id="problem-details" class="form-section hidden">
+      <h2 class="section-heading">Noch etwas, das wir wissen sollten?</h2>
+
+      <div class="space-y-5">
+        <!-- Kommentarfeld -->
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="problem-description">
+            Beschreibe uns so gut wie möglich dein Problem
+          </label>
+          <textarea id="problem-description" class="form-input !h-28 !resize-y"
+                    placeholder="z.B. Bremse quietscht beim Rückwärtsfahren, Schaltung springt unter Last..."
+                    data-field="problemDescription"
+                    oninput="BookingState.set('problemDescription', this.value)"></textarea>
+        </div>
+
+        <!-- Foto/Video Upload -->
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary">
+            Fotos oder Videos vom Problem
+          </label>
+          <div id="upload-dropzone" class="upload-dropzone" onclick="document.getElementById('file-input').click()">
+            <input type="file" id="file-input" class="hidden" multiple
+                   accept="image/*,video/*" onchange="handleFileSelect(this.files)">
+            <div class="upload-dropzone__content">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-2 text-text-muted">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <span class="text-sm text-text-muted">Klicken oder Dateien hierher ziehen</span>
+              <span class="text-xs text-text-muted mt-1">Fotos & Videos, max. 20 MB pro Datei</span>
+            </div>
+          </div>
+          <div id="upload-preview" class="upload-preview mt-3 hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="flex justify-between">
+      <button type="button" class="btn-cta !w-auto !bg-purple-700 !text-white" onclick="catalogBack()">
+        Zurück
+      </button>
+      <button type="button" class="btn-cta !w-auto" id="btn-step2-next" disabled onclick="goToStep(3)">
+        Weiter zu deinen Daten
+      </button>
+    </div>
+
+  </div>
+</section>

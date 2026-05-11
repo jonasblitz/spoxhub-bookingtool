@@ -1,0 +1,23 @@
+{
+  "types": [
+    {
+      "id": "ebike",
+      "name": "E-Bike",
+      "icon": "bolt-bike",
+      "defaultBidexClass": "A",
+      "globalDurationFactor": 1.0
+    },
+    {
+      "id": "cargobike",
+      "name": "Cargobike",
+      "icon": "cargo-bike",
+      "defaultBidexClass": "B",
+      "globalDurationFactor": 1.3
+    }
+  ],
+  "bidexClasses": [
+    { "id": "A", "name": "Standard", "description": "Gängige Marken und Modelle" },
+    { "id": "B", "name": "Premium", "description": "Höherwertige Komponenten" },
+    { "id": "C", "name": "High-End", "description": "Spezialisierte / High-End Räder" }
+  ]
+}

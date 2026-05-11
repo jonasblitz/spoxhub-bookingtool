@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Einsatzradien — SpoxHub Admin</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<style>
+  :root {
+    --bg: #0f0717;
+    --panel: #1a0d2a;
+    --accent: #5A0064;
+    --neon: #E8FF00;
+    --text: #f5f0fb;
+    --muted: #a397b3;
+    --border: #2c1a40;
+    --danger: #ff4d6d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+  }
+  .app { display: grid; grid-template-columns: 380px 1fr; height: 100vh; }
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 20px;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; letter-spacing: .5px; }
+  .sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+  .card {
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    transition: border-color .15s;
+  }
+  .card.active { border-color: var(--neon); box-shadow: 0 0 0 1px var(--neon) inset; }
+  .card-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; gap: 8px;
+  }
+  .name { font-weight: 600; font-size: 14px; flex: 1; }
+  .badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 999px;
+    background: rgba(232,255,0,.15); color: var(--neon);
+    text-transform: uppercase; letter-spacing: .8px;
+  }
+  .badge.off { background: rgba(255,77,109,.15); color: var(--danger); }
+  .badge.werk { background: rgba(255,255,255,.08); color: var(--muted); }
+  .meta { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  label { display: block; font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+  input[type=number], input[type=time] {
+    width: 100%; padding: 6px 8px; font-size: 12px;
+    background: rgba(0,0,0,.3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    font-family: inherit;
+  }
+  input[type=time]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .6; }
+  input:focus { outline: none; border-color: var(--neon); }
+  .toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--muted); cursor: pointer;
+    padding: 3px 8px; border-radius: 999px;
+    background: rgba(255,255,255,.04); border: 1px solid var(--border);
+    user-select: none;
+  }
+  .toggle input { margin: 0; cursor: pointer; accent-color: var(--neon); }
+  .toggle.on { color: var(--neon); border-color: rgba(232,255,0,.4); }
+  .actions { display: flex; gap: 6px; }
+  button {
+    flex: 1; padding: 7px 10px; font-size: 12px;
+    background: var(--accent); color: var(--text);
+    border: none; border-radius: 6px; cursor: pointer;
+    font-weight: 500; font-family: inherit;
+    transition: background .15s, transform .1s;
+  }
+  button:hover { background: #7a0085; }
+  button:active { transform: scale(.97); }
+  button.primary { background: var(--neon); color: #000; font-weight: 600; }
+  button.primary:hover { background: #f0ff4d; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .map-wrap { position: relative; }
+  #map { height: 100vh; background: #1a0d2a; }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 10px 14px; border-radius: 8px; font-size: 13px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    opacity: 0; transform: translateY(10px); pointer-events: none;
+    transition: opacity .2s, transform .2s; z-index: 1000;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.err { border-color: var(--danger); }
+  .empty { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
+  .leaflet-popup-content-wrapper { background: var(--panel); color: var(--text); }
+  .leaflet-popup-tip { background: var(--panel); }
+  .leaflet-control-layers {
+    background: var(--panel) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+  }
+  .leaflet-control-layers-expanded { padding: 8px 12px !important; }
+  .leaflet-control-layers label { font-size: 12px; color: var(--text); margin-bottom: 4px; }
+  .leaflet-control-layers-separator { border-top-color: var(--border) !important; }
+  .hint {
+    font-size: 11px; color: var(--muted); margin-top: 6px;
+    font-style: italic;
+  }
+  .section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 22px 0 10px;
+  }
+  .section-head h2 {
+    font-size: 13px; font-weight: 600; margin: 0;
+    text-transform: uppercase; letter-spacing: .8px; color: var(--muted);
+  }
+  .sync-btn {
+    background: rgba(255,255,255,.05); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 10px; font-size: 11px; cursor: pointer;
+    font-family: inherit; transition: background .15s, border-color .15s;
+  }
+  .sync-btn:hover { background: rgba(232,255,0,.1); border-color: var(--neon); }
+  .sync-btn:disabled { opacity: .5; cursor: wait; }
+  .loc-stats {
+    font-size: 11px; color: var(--muted);
+    background: rgba(0,0,0,.2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px;
+  }
+  .loc-stats strong { color: var(--neon); font-weight: 600; }
+  .leaflet-tooltip.loc-tooltip {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .loc-popup { font-size: 12px; line-height: 1.5; }
+  .loc-popup b { color: var(--neon); }
+
+  /* Google-Style Drop-Pin */
+  .gpin {
+    width: 28px; height: 40px;
+    transform-origin: center bottom;
+    transition: transform .15s ease-out;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.45));
+    cursor: pointer;
+  }
+  .gpin:hover { transform: scale(1.15); }
+  .gpin svg { display: block; width: 100%; height: 100%; }
+
+  /* Cluster-Bubbles (überschreibt MarkerCluster.Default.css) */
+  .marker-cluster-small,
+  .marker-cluster-medium,
+  .marker-cluster-large {
+    background: rgba(232, 255, 0, .25) !important;
+  }
+  .marker-cluster-small div,
+  .marker-cluster-medium div,
+  .marker-cluster-large div {
+    background: var(--neon) !important;
+    color: #000 !important;
+    font-weight: 700 !important;
+    font-family: inherit !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,.4);
+    border: 2px solid rgba(0,0,0,.15);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <h1>Einsatzradien</h1>
+    <div class="sub">Fahrzeuge aus Airtable · Karte rechts zeigt Reichweite</div>
+    <div id="list" class="empty">Lade Kalender…</div>
+
+    <div class="section-head">
+      <h2>Termin-Pins (mobile)</h2>
+      <button id="syncBtn" class="sync-btn" type="button">Sync</button>
+    </div>
+    <div id="locStats" class="loc-stats">Lade Termine…</div>
+  </aside>
+  <div class="map-wrap"><div id="map"></div></div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script>
+  const API_BASE = (() => {
+    const p = window.location.pathname;
+    if (p.includes('/booking/')) return '/booking';
+    return '';
+  })();
+
+  const COLORS = ['#E8FF00','#ff7ad9','#7adfff','#ffb27a','#9affb2','#c89aff','#ff9a9a'];
+
+  const map = L.map('map', { zoomControl: true }).setView([53.5511, 9.9937], 11);
+
+  // ─── Basemaps (auswählbar oben rechts, Default: hell) ──────────────────────
+  const tilePresets = {
+    'CARTO Voyager (hell)': L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      { attribution: '&copy; OSM &copy; CARTO', maxZoom: 19, subdomains: 'abcd' }
+    ),
+    'CARTO Positron (sehr hell)': L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      { attribution: '&copy; OSM &copy; CARTO', maxZoom: 19, subdomains: 'abcd' }
+    ),
+    'OpenStreetMap': L.tileLayer(
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '&copy; OpenStreetMap', maxZoom: 19 }
+    ),
+    'CARTO Dark': L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      { attribution: '&copy; OSM &copy; CARTO', maxZoom: 19, subdomains: 'abcd' }
+    )
+  };
+  const DEFAULT_TILE = 'CARTO Voyager (hell)';
+  const savedTile = localStorage.getItem('admin.tilestyle') || DEFAULT_TILE;
+  const initialTile = tilePresets[savedTile] ? savedTile : DEFAULT_TILE;
+  tilePresets[initialTile].addTo(map);
+  map.on('baselayerchange', e => {
+    localStorage.setItem('admin.tilestyle', e.name);
+  });
+
+  const state = {
+    calendars: [], layers: new Map(), markers: new Map(), selected: null,
+    locations: [],
+    pinCluster: L.markerClusterGroup({
+      showCoverageOnHover: false,
+      spiderfyOnMaxZoom: true,
+      disableClusteringAtZoom: 16,
+      maxClusterRadius: 55
+    }),
+    heatLayer: L.heatLayer([], {
+      radius: 28,
+      blur: 22,
+      maxZoom: 14,
+      minOpacity: 0.35,
+      gradient: { 0.2: '#7adfff', 0.45: '#9affb2', 0.7: '#E8FF00', 1.0: '#ff7ad9' }
+    })
+  };
+  state.pinCluster.addTo(map);
+
+  const layersControl = L.control.layers(tilePresets, {
+    'Termin-Pins (Cluster)': state.pinCluster,
+    'Heatmap': state.heatLayer
+  }, { position: 'topright', collapsed: true }).addTo(map);
+
+  function toast(msg, isErr=false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.toggle('err', isErr);
+    el.classList.add('show');
+    clearTimeout(window._tt);
+    window._tt = setTimeout(() => el.classList.remove('show'), 2500);
+  }
+
+  async function loadCalendars() {
+    const r = await fetch(`${API_BASE}/api/admin/calendars`);
+    const d = await r.json();
+    state.calendars = d.calendars || [];
+    render();
+    fitToAll();
+  }
+
+  function render() {
+    const list = document.getElementById('list');
+    if (!state.calendars.length) {
+      list.className = 'empty';
+      list.textContent = 'Keine Kalender gefunden.';
+      return;
+    }
+    list.className = '';
+    list.innerHTML = state.calendars.map((c, i) => cardHtml(c, i)).join('');
+    state.calendars.forEach((c, i) => bindCard(c, i));
+    state.calendars.forEach((c, i) => placeMarker(c, i));
+  }
+
+  function cardHtml(c, i) {
+    const color = COLORS[i % COLORS.length];
+    const typBadge = c.typ === 'mobil'
+      ? `<span class="badge">mobil</span>`
+      : `<span class="badge werk">${c.typ || '—'}</span>`;
+    const isMobile = c.typ === 'mobil';
+    const aktivToggle = `
+      <label class="toggle ${c.aktiv ? 'on' : ''}" data-toggle>
+        <input type="checkbox" data-f="aktiv" ${c.aktiv ? 'checked' : ''}>
+        ${c.aktiv ? 'aktiv' : 'inaktiv'}
+      </label>`;
+    const zeitenRow = `
+      <div class="row">
+        <div><label>Arbeitszeit Anfang</label><input type="time" data-f="arbeitszeitStart" value="${escapeAttr(c.arbeitszeitStart)}"></div>
+        <div><label>Arbeitszeit Ende</label><input type="time" data-f="arbeitszeitEnde" value="${escapeAttr(c.arbeitszeitEnde)}"></div>
+      </div>
+      <div class="row">
+        <div><label>Pausen-Fenster Anfang</label><input type="time" data-f="pausenFenstrStart" value="${escapeAttr(c.pausenFenstrStart)}"></div>
+        <div><label>Pausen-Fenster Ende</label><input type="time" data-f="pausenFenstrEnde" value="${escapeAttr(c.pausenFenstrEnde)}"></div>
+      </div>
+      <div class="row">
+        <div><label>Pausen-Länge (Min)</label><input type="number" step="5" min="0" data-f="pausenLaenge" value="${c.pausenLaenge ?? ''}"></div>
+        <div><label class="toggle ${c.samstagsAktiv ? 'on' : ''}" style="margin-top:14px;display:inline-flex;">
+          <input type="checkbox" data-f="samstagsAktiv" ${c.samstagsAktiv ? 'checked' : ''}>
+          Samstag buchbar
+        </label></div>
+      </div>`;
+    const bufferRow = isMobile ? `
+      <div class="row">
+        <div><label>Fahrzeit-Reserve (Min)</label><input type="number" step="1" min="0" data-f="travelBufferMin" value="${c.travelBufferMin ?? ''}"></div>
+        <div></div>
+      </div>` : '';
+    return `
+      <div class="card" data-id="${c.recordId}" style="border-left: 3px solid ${color};">
+        <div class="card-head">
+          <span class="name">${escapeHtml(c.name)}</span>
+          ${typBadge}${aktivToggle}
+        </div>
+        <div class="meta">eTermin #${c.id} · Prio ${c.prio}</div>
+        ${isMobile ? `
+          <div class="row">
+            <div><label>StartLat</label><input type="number" step="0.000001" data-f="startLat" value="${c.lat ?? ''}"></div>
+            <div><label>StartLng</label><input type="number" step="0.000001" data-f="startLng" value="${c.lng ?? ''}"></div>
+          </div>
+          <div class="row">
+            <div><label>Max Fahrzeit (Min)</label><input type="number" step="1" data-f="maxMin" value="${c.maxMin ?? ''}"></div>
+            <div></div>
+          </div>
+          ${zeitenRow}
+          ${bufferRow}
+          <div class="actions">
+            <button data-act="save">Speichern</button>
+            <button data-act="show" class="primary">Radius zeigen</button>
+          </div>
+          <div class="hint">Marker auf der Karte verschiebbar (auto-save).</div>
+        ` : `
+          ${zeitenRow}
+          <div class="actions">
+            <button data-act="save">Speichern</button>
+          </div>
+        `}
+      </div>`;
+  }
+
+  function bindCard(c, i) {
+    const el = document.querySelector(`.card[data-id="${c.recordId}"]`);
+    if (!el) return;
+    el.addEventListener('click', e => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.closest('.toggle')) return;
+      selectCard(c.recordId);
+    });
+    const saveBtn = el.querySelector('[data-act="save"]');
+    const showBtn = el.querySelector('[data-act="show"]');
+    if (saveBtn) saveBtn.addEventListener('click', () => saveCard(c.recordId));
+    if (showBtn) showBtn.addEventListener('click', () => showIsochrone(c.recordId));
+    const aktivCb = el.querySelector('input[data-f="aktiv"]');
+    if (aktivCb) aktivCb.addEventListener('change', () => toggleAktiv(c.recordId, aktivCb.checked));
+  }
+
+  function selectCard(id) {
+    state.selected = id;
+    document.querySelectorAll('.card').forEach(el => {
+      el.classList.toggle('active', el.dataset.id === id);
+    });
+    const c = state.calendars.find(x => x.recordId === id);
+    if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
+      map.flyTo([c.lat, c.lng], 12, { duration: .8 });
+    }
+  }
+
+  function readInputs(id) {
+    const el = document.querySelector(`.card[data-id="${id}"]`);
+    if (!el) return null;
+    const get = f => el.querySelector(`[data-f="${f}"]`);
+    return {
+      startLat: parseFloat(get('startLat')?.value),
+      startLng: parseFloat(get('startLng')?.value),
+      maxMin: parseFloat(get('maxMin')?.value),
+      arbeitszeitStart: get('arbeitszeitStart')?.value || '',
+      arbeitszeitEnde:  get('arbeitszeitEnde')?.value  || '',
+      pausenLaenge: parseFloat(get('pausenLaenge')?.value),
+      pausenFenstrStart: get('pausenFenstrStart')?.value || '',
+      pausenFenstrEnde:  get('pausenFenstrEnde')?.value  || '',
+      samstagsAktiv: get('samstagsAktiv') ? !!get('samstagsAktiv').checked : undefined,
+      travelBufferMin: parseFloat(get('travelBufferMin')?.value)
+    };
+  }
+
+  async function patchCalendar(id, body) {
+    const r = await fetch(`${API_BASE}/api/admin/calendars/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.error || r.status);
+    }
+    return r.json();
+  }
+
+  async function saveCard(id) {
+    const v = readInputs(id);
+    const cal = state.calendars.find(c => c.recordId === id);
+    if (!cal) return;
+    const body = {
+      arbeitszeitStart: v.arbeitszeitStart,
+      arbeitszeitEnde:  v.arbeitszeitEnde,
+      pausenFenstrStart: v.pausenFenstrStart,
+      pausenFenstrEnde:  v.pausenFenstrEnde
+    };
+    if (Number.isFinite(v.pausenLaenge))     body.pausenLaenge    = v.pausenLaenge;
+    if (typeof v.samstagsAktiv === 'boolean') body.samstagsAktiv  = v.samstagsAktiv;
+    if (cal.typ === 'mobil') {
+      if (!Number.isFinite(v.startLat) || !Number.isFinite(v.startLng)) {
+        return toast('StartLat/StartLng ungültig', true);
+      }
+      body.startLat = v.startLat;
+      body.startLng = v.startLng;
+      if (Number.isFinite(v.maxMin)) body.maxMin = v.maxMin;
+      if (Number.isFinite(v.travelBufferMin)) body.travelBufferMin = v.travelBufferMin;
+    }
+    try {
+      await patchCalendar(id, body);
+    } catch (err) {
+      return toast('Fehler: ' + err.message, true);
+    }
+    Object.assign(cal, {
+      lat: Number.isFinite(v.startLat) ? v.startLat : cal.lat,
+      lng: Number.isFinite(v.startLng) ? v.startLng : cal.lng,
+      maxMin: Number.isFinite(v.maxMin) ? v.maxMin : cal.maxMin,
+      arbeitszeitStart: v.arbeitszeitStart,
+      arbeitszeitEnde:  v.arbeitszeitEnde,
+      pausenLaenge: Number.isFinite(v.pausenLaenge) ? v.pausenLaenge : cal.pausenLaenge,
+      pausenFenstrStart: v.pausenFenstrStart || cal.pausenFenstrStart,
+      pausenFenstrEnde:  v.pausenFenstrEnde  || cal.pausenFenstrEnde,
+      samstagsAktiv: typeof v.samstagsAktiv === 'boolean' ? v.samstagsAktiv : cal.samstagsAktiv,
+      travelBufferMin: Number.isFinite(v.travelBufferMin) ? v.travelBufferMin : cal.travelBufferMin
+    });
+    placeMarker(cal, state.calendars.indexOf(cal));
+    toast('Gespeichert');
+  }
+
+  async function toggleAktiv(id, aktiv) {
+    const cal = state.calendars.find(c => c.recordId === id);
+    if (!cal) return;
+    try {
+      await patchCalendar(id, { aktiv });
+    } catch (err) {
+      return toast('Fehler: ' + err.message, true);
+    }
+    cal.aktiv = aktiv;
+    const el = document.querySelector(`.card[data-id="${id}"] .toggle`);
+    if (el) {
+      el.classList.toggle('on', aktiv);
+      el.lastChild.textContent = ' ' + (aktiv ? 'aktiv' : 'inaktiv');
+    }
+    if (cal.typ === 'mobil') {
+      if (aktiv) showIsochrone(id, { silent: true });
+      else removeShape(id);
+    }
+    toast(aktiv ? 'Aktiviert' : 'Deaktiviert');
+  }
+
+  function removeShape(id) {
+    if (state.layers.has(id)) {
+      map.removeLayer(state.layers.get(id));
+      state.layers.delete(id);
+    }
+  }
+
+  async function showIsochrone(id, opts = {}) {
+    const { silent = false, skipSave = false } = opts;
+    const c = state.calendars.find(x => x.recordId === id);
+    if (!c) return;
+    if (!skipSave) {
+      const v = readInputs(id);
+      if (v && Number.isFinite(v.startLat)) {
+        const changed = v.startLat !== c.lat || v.startLng !== c.lng || v.maxMin !== c.maxMin;
+        if (changed) await saveCard(id);
+      }
+    }
+    if (!silent) selectCard(id);
+    if (!silent) toast('Lade Einsatzradius…');
+    const btn = document.querySelector(`.card[data-id="${id}"] [data-act="show"]`);
+    if (btn) btn.disabled = true;
+    try {
+      const r = await fetch(`${API_BASE}/api/admin/isochrone/${id}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.status);
+      drawShapes(c, d.shapes, { fit: !silent });
+      if (!silent) toast('Einsatzradius geladen');
+    } catch (err) {
+      if (!silent) toast('Fehler: ' + err.message, true);
+      else console.warn('[isochrone]', c.name, err.message);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function drawShapes(cal, shapes, { fit = true } = {}) {
+    const i = state.calendars.indexOf(cal);
+    const color = COLORS[i % COLORS.length];
+    if (state.layers.has(cal.recordId)) {
+      map.removeLayer(state.layers.get(cal.recordId));
+    }
+    const polys = shapes.map(s => {
+      const shell = (s.shell || []).map(p => [p.lat, p.lng]);
+      const holes = (s.holes || []).map(h => h.map(p => [p.lat, p.lng]));
+      return [shell, ...holes];
+    });
+    const layer = L.polygon(polys, {
+      color, weight: 2, fillColor: color, fillOpacity: .15
+    }).bindPopup(`<b>${escapeHtml(cal.name)}</b><br>${cal.maxMin} Min Fahrzeit`);
+    layer.addTo(map);
+    state.layers.set(cal.recordId, layer);
+    if (fit) map.fitBounds(layer.getBounds(), { padding: [40,40] });
+  }
+
+  function placeMarker(c, i) {
+    if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) {
+      if (state.markers.has(c?.recordId)) {
+        map.removeLayer(state.markers.get(c.recordId));
+        state.markers.delete(c.recordId);
+      }
+      return;
+    }
+    const color = COLORS[i % COLORS.length];
+    if (state.markers.has(c.recordId)) {
+      state.markers.get(c.recordId).setLatLng([c.lat, c.lng]);
+      return;
+    }
+    const icon = L.divIcon({
+      className: 'cal-marker',
+      html: `<div style="background:${color};width:18px;height:18px;border-radius:50%;border:2px solid #000;box-shadow:0 0 0 2px ${color}66;"></div>`,
+      iconSize: [22,22], iconAnchor: [11,11]
+    });
+    const m = L.marker([c.lat, c.lng], { icon, draggable: true }).addTo(map);
+    m.bindTooltip(c.name, { direction: 'top', offset: [0,-10] });
+    m.on('dragend', () => {
+      const ll = m.getLatLng();
+      updateInputs(c.recordId, ll.lat, ll.lng);
+      saveCard(c.recordId);
+    });
+    m.on('click', () => selectCard(c.recordId));
+    state.markers.set(c.recordId, m);
+  }
+
+  function updateInputs(id, lat, lng) {
+    const el = document.querySelector(`.card[data-id="${id}"]`);
+    if (!el) return;
+    const a = el.querySelector('input[data-f="startLat"]');
+    const b = el.querySelector('input[data-f="startLng"]');
+    if (a) a.value = lat.toFixed(6);
+    if (b) b.value = lng.toFixed(6);
+  }
+
+  function fitToAll() {
+    const points = state.calendars
+      .filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng))
+      .map(c => [c.lat, c.lng]);
+    if (points.length > 0) map.fitBounds(points, { padding: [60,60], maxZoom: 12 });
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, m => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[m]));
+  }
+  const escapeAttr = escapeHtml;
+
+  async function autoLoadShapes() {
+    const eligible = state.calendars.filter(c =>
+      c.aktiv && c.typ === 'mobil'
+      && Number.isFinite(c.lat) && Number.isFinite(c.lng) && c.maxMin > 0
+    );
+    if (!eligible.length) return;
+    await Promise.all(eligible.map(c => showIsochrone(c.recordId, { silent: true, skipSave: true })));
+    const bounds = [];
+    state.layers.forEach(l => { try { bounds.push(l.getBounds()); } catch (_) {} });
+    if (bounds.length) {
+      const all = bounds.reduce((a, b) => a.extend(b), L.latLngBounds(bounds[0].getSouthWest(), bounds[0].getNorthEast()));
+      map.fitBounds(all, { padding: [40,40] });
+    }
+  }
+
+  // ─── Termin-Pins (eTermin Locations aus Airtable) ────────────────────────
+  async function loadLocations() {
+    const stats = document.getElementById('locStats');
+    try {
+      const r = await fetch(`${API_BASE}/api/admin/locations`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.status);
+      state.locations = d.locations || [];
+      renderLocationMarkers();
+      stats.innerHTML = state.locations.length
+        ? `<strong>${state.locations.length}</strong> geocodierte Termine auf der Karte.`
+        : 'Noch keine geocodierten Termine. Klick auf <strong>Sync</strong>.';
+    } catch (err) {
+      stats.textContent = 'Fehler: ' + err.message;
+    }
+  }
+
+  // Google-Style Drop-Pin (SVG inline, Farbe per fill)
+  function googlePinIcon(fill = '#E8FF00', stroke = '#000') {
+    const html = `
+      <div class="gpin">
+        <svg viewBox="0 0 24 34" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 0C5.4 0 0 5.4 0 12c0 8.4 12 22 12 22s12-13.6 12-22C24 5.4 18.6 0 12 0z"
+                fill="${fill}" stroke="${stroke}" stroke-width="1.4"/>
+          <circle cx="12" cy="12" r="4.2" fill="${stroke}" opacity=".85"/>
+        </svg>
+      </div>`;
+    return L.divIcon({
+      className: 'gpin-wrap',
+      html,
+      iconSize: [28, 40],
+      iconAnchor: [14, 40],
+      popupAnchor: [0, -36],
+      tooltipAnchor: [0, -32]
+    });
+  }
+
+  function renderLocationMarkers() {
+    state.pinCluster.clearLayers();
+    const heatPoints = [];
+    const calendarColor = (kalender) => {
+      // Farbe vom passenden Kalender im Kalender-State (fallback Neon)
+      const i = state.calendars.findIndex(c => c.name === kalender);
+      return i >= 0 ? COLORS[i % COLORS.length] : '#E8FF00';
+    };
+
+    for (const loc of state.locations) {
+      if (!Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) continue;
+      const fill = calendarColor(loc.kalender);
+      const icon = googlePinIcon(fill, '#0f0717');
+      const m = L.marker([loc.lat, loc.lng], { icon });
+      const datum = loc.datum
+        ? new Date(loc.datum).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
+        : '—';
+      const fullName = [loc.vorname, loc.name].filter(Boolean).join(' ') || '—';
+      m.bindPopup(`
+        <div class="loc-popup">
+          <b>${escapeHtml(fullName)}</b><br>
+          ${escapeHtml(loc.anschrift || '—')}<br>
+          <span style="color:var(--muted)">${escapeHtml(datum)}</span><br>
+          <span style="color:var(--muted);font-size:11px">#${escapeHtml(loc.bookingId)} · ${escapeHtml(loc.kalender || '')}</span>
+        </div>
+      `);
+      m.bindTooltip(fullName, { direction: 'top', offset: [0, -32], className: 'loc-tooltip' });
+      state.pinCluster.addLayer(m);
+      heatPoints.push([loc.lat, loc.lng, 0.6]);
+    }
+    state.heatLayer.setLatLngs(heatPoints);
+  }
+
+  async function syncLocations() {
+    const btn = document.getElementById('syncBtn');
+    const stats = document.getElementById('locStats');
+    btn.disabled = true;
+    btn.textContent = 'Sync läuft…';
+    stats.textContent = 'Lade Termine aus eTermin und geocode neue Adressen…';
+    try {
+      const r = await fetch(`${API_BASE}/api/admin/locations/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 365 })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.status);
+      const s = d.stats || {};
+      stats.innerHTML = `Sync ok · <strong>${s.fetched || 0}</strong> Termine, <strong>${s.created || 0}</strong> neu, <strong>${s.geocoded || 0}</strong> geocodiert${s.geocodeFailed ? `, <strong style="color:var(--danger)">${s.geocodeFailed}</strong> fehlgeschlagen` : ''}.`;
+      toast('Sync abgeschlossen');
+      await loadLocations();
+    } catch (err) {
+      stats.textContent = 'Fehler: ' + err.message;
+      toast('Sync-Fehler: ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sync';
+    }
+  }
+
+  document.getElementById('syncBtn').addEventListener('click', syncLocations);
+
+  loadCalendars()
+    .then(() => autoLoadShapes())
+    .catch(err => {
+      document.getElementById('list').textContent = 'Fehler beim Laden: ' + err.message;
+    });
+
+  loadLocations();
+</script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<section class="screen-panel is-hidden" data-screen="address">
+  <h2 class="screen-panel__question" id="address-label">Wo wohnst du?</h2>
+  <p class="screen-panel__hint">Wir prüfen, ob wir zu dir kommen können.</p>
+
+  <div class="space-y-4">
+    <div class="form-group">
+      <label class="form-label !text-base !font-body !text-text-secondary" for="address-street">Straße & Hausnummer</label>
+      <input type="text" id="address-street" class="form-input" required autocomplete="street-address"
+             placeholder="z.B. Mönckebergstraße 1">
+      <span class="form-error hidden" role="alert"></span>
+    </div>
+
+    <div class="grid grid-cols-[110px_1fr] gap-3">
+      <div class="form-group">
+        <label class="form-label !text-base !font-body !text-text-secondary" for="address-plz">PLZ</label>
+        <input type="text" id="address-plz" class="form-input" required inputmode="numeric" autocomplete="postal-code"
+               placeholder="20095" maxlength="5" oninput="onPlzInput(this)">
+        <span class="form-error hidden" role="alert"></span>
+      </div>
+      <div class="form-group relative">
+        <label class="form-label !text-base !font-body !text-text-secondary" for="address-city">Ort</label>
+        <input type="text" id="address-city" class="form-input" required autocomplete="address-level2"
+               placeholder="Wird automatisch geladen...">
+        <span id="plz-loading" class="absolute right-1 top-9 hidden">
+          <span class="inline-block w-4 h-4 border-2 border-neon-lime border-t-transparent rounded-full animate-spin"></span>
+        </span>
+        <span class="form-error hidden" role="alert"></span>
+      </div>
+    </div>
+
+    <div id="geo-feedback" class="hidden" role="status" aria-live="polite"></div>
+
+    <div id="out-of-area" class="hidden">
+      <div class="bg-purple-800 border border-state-warning rounded-xl p-5 space-y-3">
+        <p class="text-white text-sm">
+          <span class="text-state-warning font-bold">Leider noch nicht in unserem Einsatzgebiet.</span><br>
+          Du kannst aber einen Termin in unserer Werkstatt buchen.
+        </p>
+        <p class="text-text-secondary text-sm">
+          Trag dich hier für den Newsletter ein, um zu erfahren, wann wir zu dir kommen:
+        </p>
+        <div class="flex gap-2">
+          <input type="email" id="newsletter-email" class="form-input flex-1" placeholder="Deine E-Mail">
+          <button type="button" class="btn-cta !w-auto !px-4 !text-sm" onclick="subscribeNewsletter()">Eintragen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-footer">
+    <div class="screen-footer__inner">
+      <button type="button" id="btn-address-check" class="btn-cta" onclick="checkAddressAndAdvance()">
+        Verfügbarkeit prüfen
+      </button>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,94 @@
+<aside class="lg:col-span-1">
+  <!-- Desktop Sidebar -->
+  <div class="sidebar-card sticky top-8 space-y-5 hidden lg:block" id="sidebar-desktop">
+    <h3 class="text-neon-lime font-display text-xl">Deine Buchung</h3>
+
+    <!-- Standort -->
+    <div id="sb-location" class="hidden">
+      <div class="sidebar-item">
+        <span class="sidebar-item__dot"></span>
+        <span class="text-sm">Standort</span>
+      </div>
+      <p id="sb-location-text" class="text-text-secondary text-sm ml-6"></p>
+    </div>
+
+    <!-- Fahrzeug -->
+    <div id="sb-vehicle" class="hidden">
+      <div class="sidebar-item">
+        <span class="sidebar-item__dot"></span>
+        <span class="text-sm">Fahrzeug</span>
+      </div>
+      <p id="sb-vehicle-text" class="text-text-secondary text-sm ml-6"></p>
+    </div>
+
+    <!-- Leistungen -->
+    <div>
+      <div class="sidebar-item">
+        <span class="sidebar-item__dot"></span>
+        <span class="text-sm">Leistungen</span>
+      </div>
+      <div id="sb-services" class="ml-6 space-y-1">
+        <p class="text-text-muted text-sm italic">Noch keine Leistung gewählt</p>
+      </div>
+    </div>
+
+    <!-- Dauer -->
+    <div id="sb-duration" class="hidden">
+      <div class="sidebar-item">
+        <span class="sidebar-item__dot"></span>
+        <span class="text-sm">Geschätzte Dauer</span>
+      </div>
+      <p id="sb-duration-text" class="text-text-secondary text-sm ml-6 font-medium"></p>
+    </div>
+
+    <!-- Anfahrt -->
+    <div id="sb-travel" class="hidden">
+      <div class="sidebar-item">
+        <span class="sidebar-item__dot"></span>
+        <span class="text-sm">Anfahrtskosten</span>
+      </div>
+      <p id="sb-travel-text" class="text-text-secondary text-sm ml-6"></p>
+    </div>
+
+    <!-- Gesamtpreis -->
+    <div class="border-t border-purple-600 pt-4 mt-4">
+      <div class="flex justify-between items-baseline">
+        <span class="text-text-secondary text-sm">Geschätzter Preis</span>
+        <span id="sb-total" class="text-neon-lime font-display text-2xl">0,00 €</span>
+      </div>
+    </div>
+
+    <!-- Termin -->
+    <div id="sb-slot" class="hidden">
+      <div class="sidebar-item">
+        <span class="sidebar-item__dot"></span>
+        <span class="text-sm">Termin</span>
+      </div>
+      <p id="sb-slot-text" class="text-neon-lime text-sm ml-6 font-medium"></p>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Bar -->
+  <div class="fixed bottom-0 left-0 right-0 bg-purple-950 border-t border-purple-600 p-4 lg:hidden z-30" id="sidebar-mobile">
+    <div class="flex items-center justify-between max-w-5xl mx-auto">
+      <div>
+        <span class="text-text-muted text-xs block">Geschätzter Preis</span>
+        <span id="sb-total-mobile" class="text-neon-lime font-display text-xl">0,00 €</span>
+      </div>
+      <button type="button" class="text-text-secondary text-sm underline" onclick="toggleMobileDrawer()">
+        Details
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Drawer -->
+  <div id="mobile-drawer" class="fixed inset-0 bg-surface-overlay z-40 hidden lg:hidden" onclick="closeMobileDrawer(event)">
+    <div class="absolute bottom-0 left-0 right-0 bg-purple-900 border-t border-purple-600 rounded-t-2xl p-6 max-h-[70vh] overflow-y-auto">
+      <div class="w-10 h-1 bg-purple-600 rounded-full mx-auto mb-6"></div>
+      <h3 class="text-neon-lime font-display text-xl mb-4">Deine Buchung</h3>
+      <div id="sb-mobile-content" class="space-y-3">
+        <!-- Kopie des Sidebar-Inhalts, aktualisiert von sidebar-updater.js -->
+      </div>
+    </div>
+  </div>
+</aside>

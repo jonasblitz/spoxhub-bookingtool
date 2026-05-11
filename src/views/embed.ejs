@@ -1,0 +1,49 @@
+<%#
+  embed.ejs — Wizard-Markup als HTML-Fragment für Plugin-Embed.
+  Enthält KEIN <html>, <head>, <body> oder Script-Tags.
+  Wird vom WordPress-Plugin via /embed/markup eingebunden.
+  Das Plugin lädt CSS/JS separat über wp_enqueue_*.
+%>
+<div class="spoxhub-booking">
+
+  <!-- Progress Bar + Back Button -->
+  <%- include('partials/progress-bar') %>
+
+  <!-- Layout: Content + Desktop Sidebar -->
+  <div class="layout-wrap">
+
+    <!-- Screen Stage -->
+    <main class="screen-stage">
+      <!-- Phase 1 — Was & Wo -->
+      <%- include('partials/screens/01-location-type') %>
+      <%- include('partials/screens/02-address') %>
+      <%- include('partials/screens/03-vehicle-type') %>
+
+      <!-- Phase 2 — Service -->
+      <%- include('partials/screens/04-service-type') %>
+      <%- include('partials/screens/06-inspektion-additional') %>
+      <%- include('partials/screens/08-repair-catalog') %>
+      <%- include('partials/screens/09-repair-more') %>
+      <%- include('partials/screens/10-problem-description') %>
+
+      <!-- Phase 3 — Dein Rad -->
+      <%- include('partials/screens/11-bike-brand') %>
+      <%- include('partials/screens/12-bike-model-color') %>
+      <%- include('partials/screens/14-bike-leasing') %>
+      <%- include('partials/screens/16-bike-photo') %>
+
+      <!-- Phase 4 — Deine Daten -->
+      <%- include('partials/screens/17-customer-name-contact') %>
+      <%- include('partials/screens/18-customer-address') %>
+
+      <!-- Phase 5 — Termin & Zahlung -->
+      <%- include('partials/screens/20-slot-select') %>
+      <%- include('partials/screens/21-payment') %>
+      <%- include('partials/screens/22-confirmation') %>
+    </main>
+
+    <!-- Summary (Desktop sidebar + Mobile bar + Drawer) -->
+    <%- include('partials/summary') %>
+
+  </div><!-- /layout-wrap -->
+</div>

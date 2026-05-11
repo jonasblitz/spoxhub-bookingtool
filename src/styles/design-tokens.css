@@ -1,0 +1,66 @@
+:root {
+  /* ═══════════════════════════════════════════
+     SPOXHUB BOOKING TOOL — DESIGN TOKENS
+     Quelle: Screenshot-basiertes Design System
+     Lila: #5A0064 | Neon: #E8FF00
+     ═══════════════════════════════════════════ */
+
+  /* ── Farben: Purple Palette ── */
+  --color-purple-950: #3D0046;
+  --color-purple-900: #5A0064;
+  --color-purple-800: #6B1A75;
+  --color-purple-700: #7D3386;
+  --color-purple-600: #8E4D97;
+  --color-purple-500: #A066A8;
+  --color-purple-400: #B280B9;
+  --color-purple-300: #C499CA;
+  --color-purple-200: #D6B3DB;
+  --color-purple-100: #E8CCEC;
+  --color-purple-50:  #F5E6F7;
+
+  /* ── Farben: Neon Akzent ── */
+  --color-neon-lime:      #E8FF00;
+  --color-neon-lime-dark: #C8DB00;
+  --color-neon-lime-glow: rgba(232, 255, 0, 0.3);
+
+  /* ── Farben: Oberflächen ── */
+  --color-surface-body:     var(--color-purple-900);
+  --color-surface-card:     var(--color-purple-800);
+  --color-surface-elevated: var(--color-purple-700);
+  --color-surface-overlay:  rgba(61, 0, 70, 0.8);
+
+  /* ── Farben: Text ── */
+  --color-text-primary:   #FFFFFF;
+  --color-text-secondary: var(--color-purple-200);
+  --color-text-muted:     var(--color-purple-400);
+  --color-text-accent:    var(--color-neon-lime);
+
+  /* ── Farben: Status ── */
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-danger:  #EF4444;
+  --color-info:    #3B82F6;
+
+  /* ── Typografie ── */
+  --font-display: 'Brush Up', cursive;
+  --font-body:    'Poppins', system-ui, sans-serif;
+
+  /* ── Schatten ── */
+  --shadow-card:    0 4px 24px rgba(0, 0, 0, 0.3);
+  --shadow-card-lg: 0 8px 40px rgba(0, 0, 0, 0.4);
+  --shadow-neon-sm: 0 0 10px var(--color-neon-lime-glow);
+  --shadow-neon:    0 0 20px var(--color-neon-lime-glow);
+  --shadow-neon-lg: 0 0 40px rgba(232, 255, 0, 0.4);
+
+  /* ── Radii ── */
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
+
+  /* ── Transitions ── */
+  --transition-fast:   150ms ease;
+  --transition-base:   250ms ease;
+  --transition-slow:   350ms ease;
+}

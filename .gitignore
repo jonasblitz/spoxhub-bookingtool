@@ -1,0 +1,39 @@
+# ─── Secrets (NIEMALS commiten) ────────────────────────────────────────────
+.env
+.env.local
+.env.production
+.env.development
+.env.*.local
+*.env.bak.*
+
+# ─── Node / NPM ────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── OS / Editoren ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+.cursor/
+.windsurf/
+.claude/
+.agents/
+
+# ─── Build-Outputs ─────────────────────────────────────────────────────────
+dist/
+build/
+*.bundle.js
+
+# ─── BookingTool-spezifisch ────────────────────────────────────────────────
+uploads/
+__staging__/
+
+# ─── Logs ──────────────────────────────────────────────────────────────────
+*.log
+logs/

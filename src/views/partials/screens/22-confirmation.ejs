@@ -1,0 +1,41 @@
+<section class="screen-panel is-hidden" data-screen="confirmation">
+  <div class="text-center space-y-3 mb-6">
+    <div class="text-state-success text-6xl leading-none">&#10003;</div>
+    <h2 class="font-display text-neon-lime text-3xl">Buchung bestätigt!</h2>
+    <p class="text-white text-base" id="confirmation-email-text">
+      Wir haben dir eine Bestätigung per E-Mail geschickt.
+    </p>
+  </div>
+
+  <!-- Booking-Details -->
+  <div class="sidebar-card !p-5 space-y-4">
+    <div class="flex items-start gap-3">
+      <span class="info-badge__check shrink-0 mt-1">&#10003;</span>
+      <div>
+        <div class="text-text-muted text-xs uppercase tracking-wider">Termin</div>
+        <div class="text-white text-sm" id="summary-slot-text">–</div>
+      </div>
+    </div>
+    <div class="flex items-start gap-3">
+      <span class="info-badge__check shrink-0 mt-1">&#10003;</span>
+      <div>
+        <div class="text-text-muted text-xs uppercase tracking-wider">Service-Ort</div>
+        <div class="text-white text-sm" id="summary-location-text">–</div>
+      </div>
+    </div>
+    <div class="flex items-start gap-3">
+      <span class="info-badge__check shrink-0 mt-1">&#10003;</span>
+      <div>
+        <div class="text-text-muted text-xs uppercase tracking-wider">Anzahlung</div>
+        <div class="text-white text-sm">20,00 € bezahlt — wird mit der Rechnung verrechnet</div>
+      </div>
+    </div>
+    <div class="flex items-start gap-3" id="summary-bookingid-row">
+      <span class="info-badge__check shrink-0 mt-1">&#10003;</span>
+      <div>
+        <div class="text-text-muted text-xs uppercase tracking-wider">Buchungsnummer</div>
+        <div class="text-white text-sm font-mono" id="summary-bookingid-text">–</div>
+      </div>
+    </div>
+  </div>
+</section>

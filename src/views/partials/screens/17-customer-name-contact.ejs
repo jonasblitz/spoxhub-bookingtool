@@ -1,0 +1,52 @@
+<section class="screen-panel is-hidden" data-screen="customer-name-contact">
+  <h2 class="screen-panel__question">Wie heißt du?</h2>
+  <p class="screen-panel__hint">Damit wir dich richtig ansprechen können.</p>
+
+  <form class="space-y-5" autocomplete="on" onsubmit="event.preventDefault(); flowNext();">
+    <div class="form-group">
+      <label class="form-label !text-base !font-body !text-text-secondary" for="c-anrede">Anrede</label>
+      <select id="c-anrede" name="honorific-prefix" class="form-select" autocomplete="honorific-prefix"
+              data-field="customer.anrede" onchange="updateCustomerField(this)">
+        <option value="">Bitte wählen</option>
+        <option value="Herr">Herr</option>
+        <option value="Frau">Frau</option>
+        <option value="Divers">Divers</option>
+      </select>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">
+      <div class="form-group">
+        <label class="form-label !text-base !font-body !text-text-secondary" for="c-vorname">Vorname *</label>
+        <input type="text" id="c-vorname" name="given-name" class="form-input" required autocomplete="given-name"
+               data-field="customer.vorname" onblur="validateField(this)" oninput="updateCustomerField(this)">
+        <span class="form-error hidden" role="alert"></span>
+      </div>
+      <div class="form-group">
+        <label class="form-label !text-base !font-body !text-text-secondary" for="c-name">Nachname *</label>
+        <input type="text" id="c-name" name="family-name" class="form-input" required autocomplete="family-name"
+               data-field="customer.name" onblur="validateField(this)" oninput="updateCustomerField(this)">
+        <span class="form-error hidden" role="alert"></span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label !text-base !font-body !text-text-secondary" for="c-email">E-Mail *</label>
+      <input type="email" id="c-email" name="email" class="form-input" required inputmode="email" autocomplete="email"
+             data-field="customer.email" onblur="validateField(this)" oninput="updateCustomerField(this)">
+      <span class="form-error hidden" role="alert"></span>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label !text-base !font-body !text-text-secondary" for="c-mobil">Handynummer *</label>
+      <input type="tel" id="c-mobil" name="tel" class="form-input" required inputmode="tel" autocomplete="tel"
+             data-field="customer.mobil" onblur="validateField(this)" oninput="updateCustomerField(this)">
+      <span class="form-error hidden" role="alert"></span>
+    </div>
+  </form>
+
+  <div class="screen-footer">
+    <div class="screen-footer__inner">
+      <button type="button" class="btn-cta" onclick="flowNext()">Weiter</button>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,31 @@
+<section class="screen-panel is-hidden" data-screen="repair-know">
+  <h2 class="screen-panel__question">Weißt du schon, was gemacht werden muss?</h2>
+  <p class="screen-panel__hint">Wenn ja, zeigen wir dir unseren Leistungskatalog.</p>
+
+  <div class="grid grid-cols-1 gap-3">
+    <button type="button" class="service-card !flex-row !text-left !p-5 !gap-4"
+            onclick="chooseKnowWhat(true)">
+      <span class="service-card__icon shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11l3 3L22 4"/>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+      </span>
+      <span class="service-card__label">Ja, ich weiß was ich brauche</span>
+    </button>
+
+    <div class="service-card opacity-50 cursor-not-allowed !flex-row !text-left !p-5 !gap-4 relative">
+      <span class="service-card__icon shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </span>
+      <span class="service-card__label">Nein, hilf mir</span>
+      <span class="absolute top-2 right-2 bg-neon-lime/20 text-neon-lime text-xs px-2 py-1 rounded-full font-body">Bald verfügbar</span>
+    </div>
+  </div>
+</section>

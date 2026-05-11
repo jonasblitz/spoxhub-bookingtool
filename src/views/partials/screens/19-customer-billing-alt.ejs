@@ -1,0 +1,50 @@
+<section class="screen-panel is-hidden" data-screen="customer-billing-alt">
+  <h2 class="screen-panel__question">Abweichende Rechnungsanschrift?</h2>
+  <p class="screen-panel__hint">Nur ausfüllen, wenn die Rechnung an eine andere Adresse gehen soll. <span class="text-text-muted">(optional)</span></p>
+
+  <div class="space-y-4">
+    <label class="checkbox-row">
+      <input type="checkbox" id="c-has-billing-alt" class="checkbox-input" onchange="toggleBillingAlt(this.checked)">
+      <span class="checkbox-label">Ja, abweichende Rechnungsadresse</span>
+    </label>
+
+    <div class="space-y-4 hidden" id="billing-alt-fields">
+      <div class="form-group">
+        <label class="form-label !text-base !font-body !text-text-secondary" for="c-r-firma">Firma</label>
+        <input type="text" id="c-r-firma" class="form-input" autocomplete="organization"
+               placeholder="z.B. Musterfirma GmbH"
+               data-field="customer.rechnungFirma" oninput="updateCustomerField(this)">
+      </div>
+      <div class="form-group">
+        <label class="form-label !text-base !font-body !text-text-secondary" for="c-r-strasse">Straße & Hausnummer</label>
+        <input type="text" id="c-r-strasse" class="form-input"
+               placeholder="z.B. Mönckebergstraße 1"
+               data-field="customer.rechnungStrasse" oninput="updateCustomerField(this)">
+      </div>
+      <div class="grid grid-cols-[110px_1fr] gap-3">
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-r-plz">PLZ</label>
+          <input type="text" id="c-r-plz" class="form-input" inputmode="numeric"
+                 placeholder="20095" maxlength="5"
+                 data-field="customer.rechnungPlz"
+                 oninput="onPlzInput(this, 'c-r-ort', 'c-r-plz-loading'); updateCustomerField(this)">
+        </div>
+        <div class="form-group relative">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-r-ort">Ort</label>
+          <input type="text" id="c-r-ort" class="form-input"
+                 placeholder="Wird automatisch geladen..."
+                 data-field="customer.rechnungOrt" oninput="updateCustomerField(this)">
+          <span id="c-r-plz-loading" class="absolute right-1 top-9 hidden">
+            <span class="inline-block w-4 h-4 border-2 border-neon-lime border-t-transparent rounded-full animate-spin"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen-footer">
+    <div class="screen-footer__inner">
+      <button type="button" class="btn-cta" onclick="flowNext()">Weiter</button>
+    </div>
+  </div>
+</section>

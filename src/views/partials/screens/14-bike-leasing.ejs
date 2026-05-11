@@ -1,0 +1,63 @@
+<section class="screen-panel is-hidden" data-screen="bike-leasing">
+  <h2 class="screen-panel__question">Leasing & Versicherung</h2>
+  <p class="screen-panel__hint">Für die Abwicklung mit deinem Anbieter — falls zutreffend.</p>
+
+  <div class="space-y-10">
+
+    <!-- Leasing -->
+    <div class="space-y-4">
+      <label class="checkbox-row">
+        <input type="checkbox" id="b-is-leasing" class="checkbox-input" onchange="toggleBikeSection('leasing', this.checked)">
+        <span class="checkbox-label">Ist ein Leasingrad</span>
+      </label>
+
+      <div class="grid grid-cols-1 gap-y-4 hidden pl-7" id="leasing-fields">
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="b-leasing-company">Leasinggesellschaft</label>
+          <select id="b-leasing-company" class="form-select" data-field="bike.leasing"
+                  onchange="updateCustomerField(this); checkLeasingStatus(this.value)">
+            <option value="">Bitte wählen...</option>
+            <!-- dynamisch gefüllt von leasing.js -->
+          </select>
+          <div id="leasing-status" class="hidden mt-2"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="b-leasing-nr">Vertragsnummer</label>
+          <input type="text" id="b-leasing-nr" class="form-input"
+                 placeholder="Vertragsnummer"
+                 data-field="bike.leasingNr" oninput="updateCustomerField(this)">
+        </div>
+      </div>
+    </div>
+
+    <!-- Versicherung -->
+    <div class="space-y-4">
+      <label class="checkbox-row">
+        <input type="checkbox" id="b-is-versichert" class="checkbox-input" onchange="toggleBikeSection('versicherung', this.checked)">
+        <span class="checkbox-label">Ist versichert</span>
+      </label>
+
+      <div class="grid grid-cols-1 gap-y-4 hidden pl-7" id="versicherung-fields">
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="b-versicherung-company">Versicherung</label>
+          <input type="text" id="b-versicherung-company" class="form-input"
+                 placeholder="z.B. Wertgarantie, Enra"
+                 data-field="bike.versicherung" oninput="updateCustomerField(this)">
+        </div>
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="b-versicherung-nr">Vertragsnummer</label>
+          <input type="text" id="b-versicherung-nr" class="form-input"
+                 placeholder="Vertragsnummer"
+                 data-field="bike.versicherungNr" oninput="updateCustomerField(this)">
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="screen-footer">
+    <div class="screen-footer__inner">
+      <button type="button" class="btn-cta" onclick="flowNext()">Weiter</button>
+    </div>
+  </div>
+</section>

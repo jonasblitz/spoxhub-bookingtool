@@ -1,0 +1,13 @@
+{
+  "shopLocation": {
+    "lat": 53.56232,
+    "lng": 9.95261,
+    "label": "SpoxHub Werkstatt Hamburg"
+  },
+  "maxTravelTimeMinutes": 15,
+  "transportationType": "driving+ferry",
+  "zones": [
+    { "maxMinutes": 15, "fee": 20, "label": "Einsatzgebiet" }
+  ],
+  "werkstattFee": 0
+}

@@ -1,0 +1,72 @@
+<!-- Desktop Sidebar (fixed right, hidden on mobile) -->
+<aside class="summary-sidebar hidden lg:block" id="sidebar-desktop">
+  <h3 class="text-neon-lime font-display text-xl mb-4">Deine Buchung</h3>
+
+  <div id="sb-location" class="hidden summary-row">
+    <div class="summary-label">Standort</div>
+    <p id="sb-location-text" class="summary-value"></p>
+  </div>
+
+  <div id="sb-vehicle" class="hidden summary-row">
+    <div class="summary-label">Fahrzeug</div>
+    <p id="sb-vehicle-text" class="summary-value"></p>
+  </div>
+
+  <div class="summary-row">
+    <div class="summary-label">Leistungen</div>
+    <div id="sb-services" class="space-y-1 mt-1">
+      <p class="text-text-muted text-sm italic">Noch keine Leistung gewählt</p>
+    </div>
+  </div>
+
+  <div id="sb-duration" class="hidden summary-row">
+    <div class="summary-label">Geschätzte Dauer</div>
+    <p id="sb-duration-text" class="summary-value"></p>
+  </div>
+
+  <div id="sb-travel" class="hidden summary-row">
+    <div class="summary-label">Anfahrtskosten</div>
+    <p id="sb-travel-text" class="summary-value"></p>
+  </div>
+
+  <div class="border-t border-purple-600 pt-4 mt-4">
+    <div class="flex justify-between items-baseline">
+      <span class="text-text-secondary text-sm">Geschätzter Preis</span>
+      <span id="sb-total" class="text-neon-lime font-display text-2xl">0,00 €</span>
+    </div>
+  </div>
+
+  <div id="sb-slot" class="hidden summary-row mt-3">
+    <div class="summary-label">Termin</div>
+    <p id="sb-slot-text" class="text-neon-lime text-sm mt-1 font-medium"></p>
+  </div>
+</aside>
+
+<!-- Mobile Bottom Bar -->
+<div class="summary-bar-mobile lg:hidden" id="sidebar-mobile">
+  <div class="summary-bar-mobile__inner">
+    <div>
+      <span class="text-text-muted text-xs block leading-none">Geschätzter Preis</span>
+      <span id="sb-total-mobile" class="text-neon-lime font-display text-xl">0,00 €</span>
+    </div>
+    <button type="button" class="summary-bar-mobile__btn" onclick="toggleMobileDrawer()">
+      <span>Details</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="18 15 12 9 6 15"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Mobile Drawer -->
+<div id="mobile-drawer" class="mobile-drawer hidden lg:hidden" onclick="closeMobileDrawer(event)">
+  <div class="mobile-drawer__sheet">
+    <div class="mobile-drawer__handle"></div>
+    <h3 class="text-neon-lime font-display text-xl mb-4">Deine Buchung</h3>
+    <div id="sb-mobile-content" class="space-y-3">
+      <!-- dynamisch befüllt -->
+    </div>
+  </div>
+</div>

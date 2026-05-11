@@ -1,0 +1,23 @@
+<section class="screen-panel is-hidden" data-screen="bike-bidex">
+  <h2 class="screen-panel__question">Welche E-Bike-Klasse?</h2>
+  <p class="screen-panel__hint">Die Fahrzeugklasse bestimmt den Wartungsaufwand.</p>
+
+  <div class="grid grid-cols-1 gap-3">
+    <button type="button" class="service-card !flex-row !text-left !p-5 !gap-4"
+            data-bidex="25" onclick="chooseBidex('25')">
+      <span class="service-card__icon shrink-0 !w-10 !h-10 !text-xl">25</span>
+      <span class="flex-1">
+        <span class="service-card__label block">Pedelec bis 25 km/h</span>
+        <span class="text-text-muted text-xs block mt-0.5">Standard-E-Bike, keine Zulassung nötig</span>
+      </span>
+    </button>
+    <button type="button" class="service-card !flex-row !text-left !p-5 !gap-4"
+            data-bidex="45" onclick="chooseBidex('45')">
+      <span class="service-card__icon shrink-0 !w-10 !h-10 !text-xl">45</span>
+      <span class="flex-1">
+        <span class="service-card__label block">S-Pedelec bis 45 km/h</span>
+        <span class="text-text-muted text-xs block mt-0.5">Zulassung & Kennzeichen nötig</span>
+      </span>
+    </button>
+  </div>
+</section>

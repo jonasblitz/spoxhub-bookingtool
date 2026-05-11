@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Termin buchen — SpoxHub</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/output.css">
+</head>
+<body class="min-h-screen">
+
+  <!-- Progress Bar + Back Button -->
+  <%- include('partials/progress-bar') %>
+
+  <!-- Layout: Content + Desktop Sidebar -->
+  <div class="layout-wrap">
+
+  <!-- Screen Stage -->
+  <main class="screen-stage">
+    <!-- Phase 1 — Was & Wo -->
+    <%- include('partials/screens/01-location-type') %>
+    <%- include('partials/screens/02-address') %>
+    <%- include('partials/screens/03-vehicle-type') %>
+
+    <!-- Phase 2 — Service -->
+    <%- include('partials/screens/04-service-type') %>
+    <%- include('partials/screens/06-inspektion-additional') %>
+    <%- include('partials/screens/08-repair-catalog') %>
+    <%- include('partials/screens/09-repair-more') %>
+    <%- include('partials/screens/10-problem-description') %>
+
+    <!-- Phase 3 — Dein Rad -->
+    <%- include('partials/screens/11-bike-brand') %>
+    <%- include('partials/screens/12-bike-model-color') %>
+    <%- include('partials/screens/14-bike-leasing') %>
+    <%- include('partials/screens/16-bike-photo') %>
+
+    <!-- Phase 4 — Deine Daten -->
+    <%- include('partials/screens/17-customer-name-contact') %>
+    <%- include('partials/screens/18-customer-address') %>
+
+    <!-- Phase 5 — Termin & Zahlung -->
+    <%- include('partials/screens/20-slot-select') %>
+    <%- include('partials/screens/21-payment') %>
+    <%- include('partials/screens/22-confirmation') %>
+  </main>
+
+  <!-- Summary (Desktop sidebar + Mobile bar + Drawer) -->
+  <%- include('partials/summary') %>
+
+  </div><!-- /layout-wrap -->
+
+  <!-- Scripts -->
+  <script>
+    // API Base URL.
+    // Priorität:
+    //   1. window.SPOXHUB_API_BASE  (vom WordPress-Plugin gesetzt, absolute URL)
+    //   2. window.location.pathname (lokal "/" oder prod "/booking/")
+    const API_BASE = (typeof window.SPOXHUB_API_BASE === 'string' && window.SPOXHUB_API_BASE)
+      ? window.SPOXHUB_API_BASE.replace(/\/$/, '')
+      : window.location.pathname.replace(/\/$/, '');
+  </script>
+  <script src="js/state.js"></script>
+  <script src="js/iframe-bridge.js"></script>
+  <script src="js/analytics.js"></script>
+  <script src="js/sidebar-updater.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/brands.js"></script>
+  <script src="js/leasing.js"></script>
+  <script src="js/customer-form.js"></script>
+  <script src="js/catalog.js"></script>
+  <script src="js/upload.js"></script>
+  <script src="js/booking.js"></script>
+  <% if (paypalClientId) { %>
+  <script src="https://www.paypal.com/sdk/js?client-id=<%= paypalClientId %>&currency=EUR&intent=capture&disable-funding=sepa" data-namespace="paypal_sdk"></script>
+  <% } %>
+  <script src="js/payment.js"></script>
+  <!-- flow.js last so it initializes after everything else -->
+  <script src="js/flow.js"></script>
+
+</body>
+</html>

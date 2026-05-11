@@ -1,0 +1,134 @@
+<section class="step-panel is-hidden" data-step="4">
+  <div class="space-y-10 stagger-in">
+
+    <!-- Kundendaten -->
+    <div class="form-section">
+      <h2 class="section-heading">Deine Daten</h2>
+      <div class="info-badge mb-6">
+        <span class="info-badge__check">&#10003;</span>
+        <span>Alles was wir wissen müssen!</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-anrede">Anrede</label>
+          <select id="c-anrede" class="form-select" data-field="customer.anrede" onchange="updateCustomerField(this)">
+            <option value="">Bitte wählen</option>
+            <option value="Herr">Herr</option>
+            <option value="Frau">Frau</option>
+            <option value="Divers">Divers</option>
+          </select>
+        </div>
+        <div class="sm:col-span-1"></div>
+
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-vorname">Vorname *</label>
+          <input type="text" id="c-vorname" class="form-input" required
+                 data-field="customer.vorname" onblur="validateField(this)" oninput="updateCustomerField(this)">
+          <span class="form-error hidden" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-name">Nachname *</label>
+          <input type="text" id="c-name" class="form-input" required
+                 data-field="customer.name" onblur="validateField(this)" oninput="updateCustomerField(this)">
+          <span class="form-error hidden" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-email">E-Mail *</label>
+          <input type="email" id="c-email" class="form-input" required inputmode="email"
+                 data-field="customer.email" onblur="validateField(this)" oninput="updateCustomerField(this)">
+          <span class="form-error hidden" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-mobil">Mobilnummer *</label>
+          <input type="tel" id="c-mobil" class="form-input" required inputmode="tel"
+                 data-field="customer.mobil" onblur="validateField(this)" oninput="updateCustomerField(this)">
+          <span class="form-error hidden" role="alert"></span>
+        </div>
+
+        <div class="form-group sm:col-span-2">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-strasse">Straße & Hausnummer *</label>
+          <input type="text" id="c-strasse" class="form-input" required
+                 placeholder="z.B. Mönckebergstraße 1"
+                 data-field="customer.strasse" onblur="validateField(this)" oninput="updateCustomerField(this)">
+          <span class="form-error hidden" role="alert"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-plz">PLZ *</label>
+          <input type="text" id="c-plz" class="form-input" required inputmode="numeric"
+                 placeholder="z.B. 20095" maxlength="5"
+                 data-field="customer.plz" onblur="validateField(this)" oninput="onPlzInput(this, 'c-ort', 'c-plz-loading'); updateCustomerField(this)">
+          <span class="form-error hidden" role="alert"></span>
+        </div>
+
+        <div class="form-group relative">
+          <label class="form-label !text-base !font-body !text-text-secondary" for="c-ort">Ort *</label>
+          <input type="text" id="c-ort" class="form-input" required
+                 placeholder="Wird automatisch geladen..."
+                 data-field="customer.ort" onblur="validateField(this)" oninput="updateCustomerField(this)">
+          <span id="c-plz-loading" class="absolute right-3 top-9 hidden">
+            <span class="inline-block w-4 h-4 border-2 border-text-muted border-t-transparent rounded-full animate-spin"></span>
+          </span>
+          <span class="form-error hidden" role="alert"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Andere Rechnungsanschrift -->
+    <div class="form-section">
+      <button type="button" class="toggle-section" onclick="toggleSection('billing-section', this)">
+        <span class="toggle-section__icon">+</span>
+        Andere Rechnungsanschrift
+      </button>
+      <div id="billing-section" class="hidden mt-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+          <div class="form-group sm:col-span-2">
+            <label class="form-label !text-base !font-body !text-text-secondary" for="c-r-firma">Firma</label>
+            <input type="text" id="c-r-firma" class="form-input"
+                   placeholder="z.B. Musterfirma GmbH"
+                   data-field="customer.rechnungFirma" oninput="updateCustomerField(this)">
+          </div>
+
+          <div class="form-group sm:col-span-2">
+            <label class="form-label !text-base !font-body !text-text-secondary" for="c-r-strasse">Straße & Hausnummer</label>
+            <input type="text" id="c-r-strasse" class="form-input"
+                   placeholder="z.B. Mönckebergstraße 1"
+                   data-field="customer.rechnungStrasse" oninput="updateCustomerField(this)">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label !text-base !font-body !text-text-secondary" for="c-r-plz">PLZ</label>
+            <input type="text" id="c-r-plz" class="form-input" inputmode="numeric"
+                   placeholder="z.B. 20095" maxlength="5"
+                   data-field="customer.rechnungPlz" oninput="onPlzInput(this, 'c-r-ort', 'c-r-plz-loading'); updateCustomerField(this)">
+          </div>
+
+          <div class="form-group relative">
+            <label class="form-label !text-base !font-body !text-text-secondary" for="c-r-ort">Ort</label>
+            <input type="text" id="c-r-ort" class="form-input"
+                   placeholder="Wird automatisch geladen..."
+                   data-field="customer.rechnungOrt" oninput="updateCustomerField(this)">
+            <span id="c-r-plz-loading" class="absolute right-3 top-9 hidden">
+              <span class="inline-block w-4 h-4 border-2 border-text-muted border-t-transparent rounded-full animate-spin"></span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="flex justify-between">
+      <button type="button" class="btn-cta !w-auto !bg-purple-700 !text-white" onclick="goToStep(3)">
+        Zurück
+      </button>
+      <button type="button" class="btn-cta !w-auto" id="btn-step4-next" disabled onclick="goToStep(5)">
+        Weiter zur Terminauswahl
+      </button>
+    </div>
+
+  </div>
+</section>

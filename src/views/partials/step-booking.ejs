@@ -1,0 +1,158 @@
+<section class="step-panel is-hidden" data-step="5">
+  <div class="space-y-10">
+
+    <!-- Standort-Bestätigung + Anfahrt -->
+    <div class="form-section">
+      <h2 class="section-heading">Wo soll der Service stattfinden?</h2>
+      <div id="location-confirm" class="info-badge">
+        <span class="info-badge__check">&#10003;</span>
+        <span id="location-confirm-text">Wird geladen...</span>
+      </div>
+    </div>
+
+    <!-- Terminauswahl: Monatskalender + Slots -->
+    <div class="form-section">
+      <h2 class="section-heading">Wähle deinen Termin</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Links: Monatskalender -->
+        <div class="sidebar-card">
+          <!-- Monat-Navigation -->
+          <div class="flex items-center justify-between mb-5">
+            <button type="button" class="btn-icon !w-8 !h-8 !min-h-0" onclick="changeMonth(-1)" aria-label="Vorheriger Monat">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <span id="month-label" class="text-white font-body font-bold text-lg"></span>
+            <button type="button" class="btn-icon !w-8 !h-8 !min-h-0" onclick="changeMonth(1)" aria-label="Nächster Monat">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+
+          <!-- Wochentage Header -->
+          <div class="grid grid-cols-7 gap-1 mb-2">
+            <span class="cal-header">Mo</span>
+            <span class="cal-header">Di</span>
+            <span class="cal-header">Mi</span>
+            <span class="cal-header">Do</span>
+            <span class="cal-header">Fr</span>
+            <span class="cal-header">Sa</span>
+            <span class="cal-header">So</span>
+          </div>
+
+          <!-- Tage-Grid -->
+          <div id="month-grid" class="grid grid-cols-7 gap-1">
+            <!-- Dynamisch: 28-42 Tage -->
+          </div>
+        </div>
+
+        <!-- Rechts: Verfügbare Zeitslots -->
+        <div class="sidebar-card">
+          <h3 class="text-white font-body font-bold text-lg mb-4">
+            <span id="slots-date-label" class="text-neon-lime">Datum wählen</span>
+          </h3>
+
+          <div id="slots-container">
+            <div id="slots-loading" class="hidden text-center py-8">
+              <div class="inline-block w-8 h-8 border-2 border-neon-lime border-t-transparent rounded-full animate-spin"></div>
+              <p class="text-text-muted mt-3">Zeiten werden geladen...</p>
+            </div>
+            <div id="slots-grid" class="grid grid-cols-2 gap-2 max-h-[360px] overflow-y-auto pr-1">
+              <!-- Dynamisch: Zeitslots -->
+            </div>
+            <p id="no-slots" class="text-text-muted text-sm italic text-center py-6 hidden">
+              Keine Termine an diesem Tag verfügbar.
+            </p>
+            <p id="slots-placeholder" class="text-text-muted text-sm italic text-center py-8">
+              Wähle links ein Datum aus, um verfügbare Zeiten zu sehen.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Preisübersicht -->
+    <div class="form-section">
+      <h2 class="section-heading">Preisübersicht</h2>
+      <div class="sidebar-card">
+        <div id="price-summary-lines" class="space-y-3">
+          <!-- Dynamisch -->
+        </div>
+        <div class="border-t border-purple-600 mt-4 pt-4">
+          <div class="price-total">
+            <span>Geschätzter Gesamtpreis</span>
+            <span id="price-summary-total">0,00 €</span>
+          </div>
+        </div>
+        <p class="text-text-muted text-xs mt-3">
+          * Materialkosten werden ggf. separat berechnet. Der endgültige Preis kann abweichen.
+        </p>
+      </div>
+    </div>
+
+    <!-- Anzahlung -->
+    <div class="form-section" id="deposit-section">
+      <h2 class="section-heading">Anzahlung</h2>
+      <div class="sidebar-card">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-white font-body">Anzahlung zur verbindlichen Reservierung</span>
+          <span class="text-neon-lime font-body font-bold text-xl">20,00 €</span>
+        </div>
+        <p class="text-text-muted text-sm mb-5">
+          Die Anzahlung wird mit deinem Rechnungsbetrag verrechnet. Du zahlst den Restbetrag bequem vor Ort.
+        </p>
+
+        <!-- PayPal Buttons -->
+        <div id="paypal-button-container"></div>
+
+        <!-- Payment Status -->
+        <div id="payment-processing" class="hidden text-center py-4">
+          <div class="inline-block w-6 h-6 border-2 border-neon-lime border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-text-muted mt-2 text-sm">Zahlung wird verarbeitet...</p>
+        </div>
+        <div id="payment-success" class="hidden">
+          <div class="info-badge !bg-state-success/10 !border-state-success">
+            <span class="info-badge__check">&#10003;</span>
+            <span>Anzahlung von 20,00 € erfolgreich bezahlt!</span>
+          </div>
+        </div>
+        <div id="payment-error" class="hidden">
+          <div class="info-badge !bg-state-danger/10 !border-state-danger">
+            <span class="info-badge__check text-state-danger">!</span>
+            <span id="payment-error-msg" class="text-state-danger">Zahlung fehlgeschlagen.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buchung bestätigen -->
+    <div class="form-section">
+      <div class="flex justify-between items-center">
+        <button type="button" class="btn-cta !w-auto !bg-purple-700 !text-white" onclick="goToStep(4)">
+          Zurück
+        </button>
+        <button type="button" class="btn-cta !w-auto" id="btn-confirm" disabled onclick="confirmBooking()">
+          Jetzt verbindlich buchen
+        </button>
+      </div>
+    </div>
+
+    <!-- Erfolgs-/Fehler-Meldung -->
+    <div id="booking-result" class="hidden">
+      <div id="booking-success" class="hidden bg-state-success/10 border border-state-success rounded-xl p-8 text-center space-y-4">
+        <div class="text-state-success text-5xl">&#10003;</div>
+        <h3 class="font-display text-neon-lime text-2xl">Buchung bestätigt!</h3>
+        <p class="text-white">Du erhältst in Kürze eine Bestätigung per E-Mail.</p>
+        <div id="booking-details" class="text-text-secondary text-sm space-y-1"></div>
+      </div>
+      <div id="booking-error" class="hidden bg-state-danger/10 border border-state-danger rounded-xl p-8 text-center space-y-4">
+        <div class="text-state-danger text-5xl">!</div>
+        <h3 class="font-display text-neon-lime text-2xl">Fehler bei der Buchung</h3>
+        <p id="booking-error-msg" class="text-white"></p>
+        <button type="button" class="btn-cta !w-auto" onclick="confirmBooking()">Erneut versuchen</button>
+      </div>
+    </div>
+
+  </div>
+</section>

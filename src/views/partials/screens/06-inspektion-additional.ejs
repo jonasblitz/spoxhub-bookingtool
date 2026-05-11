@@ -1,0 +1,32 @@
+<section class="screen-panel is-hidden" data-screen="inspektion-additional">
+  <h2 class="screen-panel__question">Braucht dein Rad zusätzlich eine Reparatur?</h2>
+  <p class="screen-panel__hint">Wir können beides in einem Termin erledigen.</p>
+
+  <div class="grid grid-cols-1 gap-3">
+    <button type="button" class="service-card !flex-row !text-left !p-5 !gap-4"
+            onclick="chooseInspektionAdditional(true)">
+      <span class="service-card__icon shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 11l3 3L22 4"/>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+      </span>
+      <span class="service-card__label">Ja, zusätzlich reparieren</span>
+    </button>
+
+    <button type="button" class="service-card !flex-row !text-left !p-5 !gap-4"
+            onclick="chooseInspektionAdditional(false)">
+      <span class="service-card__icon shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </span>
+      <span class="service-card__label">Nein, nur Inspektion</span>
+    </button>
+  </div>
+</section>

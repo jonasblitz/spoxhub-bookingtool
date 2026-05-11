@@ -1,0 +1,46 @@
+<section class="screen-panel is-hidden" data-screen="location-type">
+  <h2 class="screen-panel__question">Wo sollen wir hinkommen?</h2>
+  <p class="screen-panel__hint">Wir kommen zu dir — oder du kommst zu uns.</p>
+
+  <div class="grid grid-cols-1 gap-3">
+    <button type="button" class="location-card !flex-row !text-left !p-5 !gap-4"
+            data-location="mobil" onclick="chooseLocation(this)">
+      <span class="location-card__icon shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="211.11 251.62 370.39 370.39" width="40" height="40" fill="currentColor">
+          <path d="M529.79,376.11l-118.14-100.12c-8.88-7.53-21.77-7.53-30.65,0l-118.14,100.12c-5.33,4.51-8.38,11.1-8.38,18.08v187.29c0,13.07,10.63,23.7,23.7,23.7h63.66c13.07,0,23.7-10.63,23.7-23.7v-101.84c0-.39.32-.7.7-.7h60.14c.39,0,.7.32.7.7v101.84c0,13.07,10.63,23.7,23.7,23.7h63.66c13.07,0,23.7-10.63,23.7-23.7v-187.29c0-6.98-3.05-13.57-8.38-18.08ZM426.39,455.94h-60.14c-13.07,0-23.7,10.63-23.7,23.7v101.84c0,.39-.32.7-.7.7h-63.66c-.39,0-.7-.32-.7-.7v-187.29c0-.21.09-.4.25-.54l118.14-100.12c.27-.22.65-.22.91,0l118.14,100.12c.16.13.25.33.25.54v187.29c0,.39-.32.7-.7.7h-63.66c-.39,0-.7-.32-.7-.7v-101.84c0-13.07-10.63-23.7-23.7-23.7Z"/>
+        </svg>
+      </span>
+      <span class="flex-1">
+        <span class="location-card__label !text-left block">Zu dir nach Hause</span>
+        <span class="location-card__sub !text-left block">Wir kommen zu deiner Adresse</span>
+      </span>
+    </button>
+
+    <button type="button" class="location-card !flex-row !text-left !p-5 !gap-4"
+            data-location="anderer_ort" onclick="chooseLocation(this)">
+      <span class="location-card__icon shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="207.64 254.65 366.21 366.21" width="40" height="40" fill="currentColor">
+          <path d="M390.7,271.31c-73.92,0-134.06,60.14-134.06,134.06,0,26.55,16.98,79.57,97.86,181.32,7.66,9.69,18.65,15.8,30.93,17.22,1.8.21,3.62.31,5.41.31,10.49,0,20.41-3.47,28.67-10.04,2.72-2.16,5.24-4.67,7.47-7.47,17.25-21.67,42.02-54.47,62.08-87.67,23.75-39.31,35.8-70.83,35.8-93.7-.13-73.91-60.32-134.04-134.18-134.04ZM390.69,294.31c61.19.01,111.07,49.83,111.18,111.06,0,31.99-33.85,92.86-92.86,167-1.15,1.44-2.43,2.72-3.8,3.81-4.86,3.86-10.95,5.6-17.14,4.89-6.17-.71-11.69-3.79-15.55-8.67-59.03-74.26-92.88-135.13-92.88-167.03,0-61.24,49.82-111.06,111.06-111.06Z"/>
+          <path d="M390.7,465.47c33.11,0,60.04-26.96,60.04-60.1s-26.96-60.04-60.1-60.04c-16.06,0-31.16,6.27-42.51,17.65-11.34,11.36-17.56,26.45-17.53,42.48.08,33.09,27.04,60.01,60.1,60.01ZM353.6,405.4c-.02-9.87,3.82-19.17,10.81-26.18,7.01-7.02,16.32-10.89,26.23-10.89,20.46,0,37.1,16.62,37.1,37.04s-16.62,37.1-37.04,37.1-37.05-16.63-37.1-37.06Z"/>
+        </svg>
+      </span>
+      <span class="flex-1">
+        <span class="location-card__label !text-left block">Anderer Ort</span>
+        <span class="location-card__sub !text-left block">Wir kommen mobil zu dir</span>
+      </span>
+    </button>
+
+    <button type="button" class="location-card !flex-row !text-left !p-5 !gap-4"
+            data-location="werkstatt" onclick="chooseLocation(this)">
+      <span class="location-card__icon shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="193.02 249.15 376.12 376.12" width="40" height="40" fill="currentColor">
+          <path d="M550.61,355.21c-1.81-4.7-5.26-8.68-9.73-11.2-6.83-3.84-14.96-3.8-21.77.1l-29.56,17.07-12.35-7.2-.06-14.29,29.56-17.07c6.79-3.92,10.89-10.94,10.98-18.79.09-7.86-3.88-14.98-10.61-19.05-29.42-17.77-66.05-18-95.59-.59-31.52,18.56-49.23,54.17-45.22,90.84l-133.5,133.5c-22.64,22.64-22.64,59.48,0,82.12,10.96,10.96,25.54,16.99,41.06,16.99s30.1-6.03,41.06-16.99l133.38-133.38c19.73,2.26,40.03-1.96,57.23-11.88,27.82-16.07,45.66-46.04,46.56-78.21v-.07s-1.38-11.66-1.38-11.66l-.06-.24ZM389.78,377.12c-5.1-28.97,8.31-58.35,33.38-73.11,10.78-6.35,23.08-9.7,35.58-9.7s24.28,3.2,34.94,9.28l-39.58,22.85.18,40.78,35.25,20.55,38.65-23.42c.25,2.82.57,9.13-.77,15.55-2.16,10.42-15.54,35.25-33.41,45.57-14.41,8.32-31.35,11.25-47.71,8.27l-5.93-1.08-141.73,141.73c-6.61,6.61-15.42,10.25-24.79,10.25s-18.18-3.64-24.8-10.25c-13.67-13.67-13.67-35.92,0-49.59l141.79-141.79-1.04-5.89Z"/>
+        </svg>
+      </span>
+      <span class="flex-1">
+        <span class="location-card__label !text-left block">In der Werkstatt</span>
+        <span class="location-card__sub !text-left block">Lerchenstraße 16, 22767 Hamburg (St. Pauli)</span>
+      </span>
+    </button>
+  </div>
+</section>

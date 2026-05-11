@@ -1,0 +1,26 @@
+{
+  "name": "spoxhub-booking-tool",
+  "version": "1.0.0",
+  "description": "Fahrrad-Service Buchungstool",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "concurrently \"node --watch server.js\" \"npx tailwindcss -i ./src/input.css -o ./public/css/output.css --watch\"",
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./public/css/output.css --minify",
+    "build:css:embed": "node scripts/build-embed-css.js",
+    "build": "npm run build:css && npm run build:css:embed"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "ejs": "^3.1.10",
+    "express": "^4.21.0",
+    "multer": "^2.1.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "postcss": "^8.5.13",
+    "postcss-prefix-selector": "^2.1.1",
+    "tailwindcss": "^3.4.0"
+  }
+}
