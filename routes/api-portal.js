@@ -1,6 +1,13 @@
 /**
  * Portal API — Server-to-Server-Endpoints für das Spoxhub-Portal.
  *
+ * Architektur (seit Mai 2026):
+ *   - eTermin ist Source of Truth für die Terminliste (Kalender, Start, Dauer)
+ *   - Airtable ist Enrichment für eigene Buchungen via Booking-Tool
+ *     (PayPal, Storno-Log, reicheres Customer/Bike-Profil)
+ *   - Termine ohne ExternalID (manuell in eTermin, Mittagspausen, alte Daten)
+ *     erscheinen als "etermin-only" — read-only, kein Storno-Button.
+ *
  * Auth: Bearer-Token via Env `PORTAL_API_TOKEN`.
  * Bewusst KEIN CORS — nur server-seitige Aufrufe aus dem Portal-Backend.
  */
@@ -19,8 +26,7 @@ function airtableConfig() {
     baseId:   process.env.AIRTABLE_BASE_ID,
     bookings: process.env.AIRTABLE_BOOKINGS_TABLE,
     customers: process.env.AIRTABLE_CUSTOMERS_TABLE,
-    bikes:    process.env.AIRTABLE_BIKES_TABLE,
-    eterminBookings: process.env.AIRTABLE_ETERMIN_BOOKINGS_TABLE || 'tbl3IDm2tNEUipn4B'
+    bikes:    process.env.AIRTABLE_BIKES_TABLE
   };
 }
 
@@ -89,241 +95,303 @@ function pickBikeFields(rec) {
   };
 }
 
-function pickBookingFields(rec, { customer = null, bike = null, aptInfo = null } = {}) {
-  const f = rec?.fields || {};
-  // eTermin is source of truth for time + duration when we found a match.
-  const selectedSlot = aptInfo?.startUtc || f.SelectedSlot || null;
-  return {
-    id: rec?.id,
-    bookingRef: f.BookingRef || null,
-    serviceType: f.ServiceType || null,
-    services: f.Services || null,
-    serviceIds: f.ServiceIDs || null,
-    problemDescription: f.ProblemDescription || null,
-    locationType: f.LocationType || null,
-    address: f.Address || null,
-    estimatedPrice: f.EstimatedPrice ?? null,
-    travelFee: f.TravelFee ?? null,
-    depositAmount: f.DepositAmount ?? null,
-    depositPaid: !!f.DepositPaid,
-    selectedSlot,
-    eterminBookingId: f.EterminBookingID || null,
-    payPalOrderId: f.PayPalOrderID || null,
-    payPalCaptureId: f.PayPalCaptureID || null,
-    status: f.Status || null,
-    cancellationReason: f.CancellationReason || null,
-    cancellationLog: f.CancellationLog || null,
-    createdAt: f.CreatedAt || null,
-    calendarName: aptInfo?.calendarName ?? null,
-    durationMinutes: aptInfo?.durationMinutes ?? null,
-    customer,
-    bike
-  };
-}
-
-/**
- * Build a multi-keyed lookup of eTermin appointments by asking each active
- * calendar for the date range.
- *
- * Match priority for portal bookings:
- *   1. ExternalID — eTermin echoes our saved UUID here, this is exact.
- *   2. StartDateTimeUTC + lowercased Email — robust if ID drifted.
- *   3. StartDateTimeUTC alone — last-resort, rare collisions possible.
- *
- * Returns: { byExternalId, byTimeEmail, byTime } maps with the same value
- * shape { calendarName, calendarId, startUtc, durationMinutes }.
- *
- * 4 API calls total (one per calendar) regardless of booking count. The
- * window is padded by 1 day on each side to absorb any TZ drift between
- * Airtable's stored SelectedSlot and eTermin's actual scheduling.
- */
-async function fetchAppointmentMapFromETermin(fromIso, toIso) {
-  const empty = { byExternalId: new Map(), byTimeEmail: new Map(), byTime: new Map() };
-  if (!fromIso || !toIso) return empty;
-  const calendars = await loadCalendars();
-  // Don't filter by `aktiv` — that flag controls the booking flow, but historical
-  // bookings can live in deactivated calendars (e.g. Blitz 2 mid-month). For the
-  // portal listing we want them all.
-  const active = calendars.filter(c => Number.isFinite(c.id));
-  if (!active.length) return empty;
-
-  // Pad ±1 day around the requested window.
-  const pad = (iso, days) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0, 10);
-  };
-  const fromDate = pad(fromIso, -1);
-  const toDate = pad(toIso, 1);
-
-  const byExternalId = new Map();
-  const byTimeEmail = new Map();
-  const byTime = new Map();
-
-  await Promise.all(active.map(async cal => {
-    try {
-      const apts = await etermin.getAppointments(cal.id, fromDate, toDate);
-      for (const apt of apts || []) {
-        const startUtc = apt.StartDateTimeUTC || apt.StartDateTime;
-        if (!startUtc) continue;
-        const startKey = String(startUtc).slice(0, 16);
-
-        let durationMinutes = null;
-        if (apt.StartDateTimeUTC && apt.EndDateTimeUTC) {
-          const diff = (new Date(apt.EndDateTimeUTC).getTime() - new Date(apt.StartDateTimeUTC).getTime()) / 60000;
-          if (Number.isFinite(diff) && diff > 0) durationMinutes = Math.round(diff);
-        }
-
-        const info = {
-          calendarName: cal.name,
-          calendarId: cal.id,
-          startUtc: apt.StartDateTimeUTC ? `${apt.StartDateTimeUTC}Z` : null,
-          durationMinutes
-        };
-
-        if (apt.ExternalID) byExternalId.set(String(apt.ExternalID), info);
-        if (apt.Email) byTimeEmail.set(`${startKey}|${apt.Email.toLowerCase()}`, info);
-        if (!byTime.has(startKey)) byTime.set(startKey, info);
-      }
-    } catch (err) {
-      console.warn(`[portal] eTermin getAppointments cal=${cal.id}:`, err.message);
-    }
-  }));
-  return { byExternalId, byTimeEmail, byTime };
-}
-
-function lookupApt(maps, { eterminBookingId, slot, email }) {
-  if (!maps) return null;
-  if (eterminBookingId) {
-    const hit = maps.byExternalId.get(String(eterminBookingId));
-    if (hit) return hit;
-  }
-  if (slot) {
-    const key = String(slot).slice(0, 16);
-    if (email) {
-      const hit = maps.byTimeEmail.get(`${key}|${String(email).toLowerCase()}`);
-      if (hit) return hit;
-    }
-    const hit = maps.byTime.get(key);
-    if (hit) return hit;
-  }
-  return null;
-}
-
 async function fetchRelatedById(table, recordIds = []) {
   if (!recordIds.length) return [];
   const ors = recordIds.map(id => `RECORD_ID()='${escapeFormulaString(id)}'`).join(',');
   const filter = recordIds.length === 1 ? ors : `OR(${ors})`;
-  const params = `?filterByFormula=${encodeURIComponent(filter)}&pageSize=${recordIds.length}`;
+  const params = `?filterByFormula=${encodeURIComponent(filter)}&pageSize=${Math.min(recordIds.length, 100)}`;
   const data = await airtable('GET', table, params);
   return data.records || [];
 }
 
-async function expandBookingRecord(rec) {
-  const customers = airtableConfig().customers;
-  const bikes = airtableConfig().bikes;
-  const customerIds = rec.fields?.Customer || [];
-  const bikeIds = rec.fields?.Bike || [];
-  const slot = rec.fields?.SelectedSlot;
-  const eterminBookingId = rec.fields?.EterminBookingID;
+/**
+ * Find Airtable Booking records matching the given eTermin ExternalIDs
+ * (which we store as `EterminBookingID`). Chunks the OR-clause to keep
+ * the formula length under Airtable's limit.
+ */
+async function fetchAirtableBookingsByExternalIds(externalIds) {
+  const { bookings } = airtableConfig();
+  if (!bookings || !externalIds.length) return [];
+  const CHUNK = 30;
+  const out = [];
+  for (let i = 0; i < externalIds.length; i += CHUNK) {
+    const slice = externalIds.slice(i, i + CHUNK);
+    const ors = slice.map(id => `{EterminBookingID}='${escapeFormulaString(id)}'`).join(',');
+    const filter = slice.length === 1 ? ors : `OR(${ors})`;
+    const params = `?filterByFormula=${encodeURIComponent(filter)}&pageSize=${Math.min(slice.length, 100)}`;
+    try {
+      const data = await airtable('GET', bookings, params);
+      out.push(...(data.records || []));
+    } catch (err) {
+      console.warn('[portal] airtable bookings lookup failed:', err.message);
+    }
+  }
+  return out;
+}
 
-  const [custRecs, bikeRecs, maps] = await Promise.all([
-    customers && customerIds.length ? fetchRelatedById(customers, customerIds) : Promise.resolve([]),
-    bikes && bikeIds.length ? fetchRelatedById(bikes, bikeIds) : Promise.resolve([]),
-    slot ? fetchAppointmentMapFromETermin(slot, slot) : Promise.resolve(null)
-  ]);
-  const customer = custRecs[0] ? pickCustomerFields(custRecs[0]) : null;
-  const aptInfo = lookupApt(maps, {
+/**
+ * Heuristic: is this eTermin entry a workshop blocker (Mittagspause,
+ * Auto Mittagspause, "Radblitz Base", etc.) rather than a customer
+ * appointment? Used to grey them out in the day timeline.
+ */
+const BLOCKER_REGEX = /(mittagspause|pause|base|blocker|abwesenheit|frei|urlaub|feiertag|krank)/i;
+function detectBlocker(apt) {
+  const fullName = [apt.FirstName, apt.LastName, apt.Title].filter(Boolean).join(' ').trim();
+  if (!fullName) return !apt.Email; // no customer info at all → blocker
+  if (!apt.Email && BLOCKER_REGEX.test(fullName)) return true;
+  return false;
+}
+
+function customerFromETermin(apt) {
+  if (!apt.Email && !apt.FirstName && !apt.LastName) return null;
+  return {
+    id: null,
+    email: apt.Email || null,
+    anrede: apt.Salutation || null,
+    vorname: apt.FirstName || null,
+    nachname: apt.LastName || null,
+    mobil: apt.Phone || null
+  };
+}
+
+function durationFromETermin(apt) {
+  if (!apt.StartDateTimeUTC || !apt.EndDateTimeUTC) return null;
+  const diff = (new Date(apt.EndDateTimeUTC).getTime() - new Date(apt.StartDateTimeUTC).getTime()) / 60000;
+  return Number.isFinite(diff) && diff > 0 ? Math.round(diff) : null;
+}
+
+/**
+ * Merge an eTermin appointment with optional Airtable enrichment into the
+ * Booking shape exposed to the portal.
+ */
+function mergeAppointment(apt, calendarName, enrichment) {
+  const af = enrichment?.record?.fields || {};
+  const eterminBookingId = apt.ExternalID ? String(apt.ExternalID) : null;
+  const isBlocker = detectBlocker(apt);
+
+  return {
+    // Stable IDs
+    id: String(apt.ID),
+    airtableId: enrichment?.record?.id || null,
     eterminBookingId,
-    slot,
-    email: customer?.email
-  });
-  return pickBookingFields(rec, {
-    customer,
-    bike: bikeRecs[0] ? pickBikeFields(bikeRecs[0]) : null,
-    aptInfo
-  });
+    bookingRef: af.BookingRef || null,
+
+    // Schedule (eTermin is truth)
+    selectedSlot: apt.StartDateTimeUTC ? `${apt.StartDateTimeUTC}Z` : null,
+    durationMinutes: durationFromETermin(apt),
+    calendarName,
+
+    // Classification
+    isBlocker,
+    source: enrichment ? 'airtable-merged' : 'etermin',
+
+    // Customer / bike — Airtable wins; eTermin as fallback for non-Airtable apts
+    customer: enrichment?.customer || customerFromETermin(apt),
+    bike: enrichment?.bike || null,
+
+    // Services
+    serviceType: af.ServiceType || null,
+    services: af.Services || apt.ServicesText || null,
+    serviceIds: af.ServiceIDs || null,
+    problemDescription: af.ProblemDescription || null,
+    locationType: af.LocationType || null,
+    address: af.Address || apt.Street || null,
+
+    // Pricing
+    estimatedPrice: af.EstimatedPrice ?? null,
+    travelFee: af.TravelFee ?? null,
+    depositAmount: af.DepositAmount ?? null,
+    depositPaid: !!af.DepositPaid,
+
+    // Payment (Airtable only)
+    payPalOrderId: af.PayPalOrderID || null,
+    payPalCaptureId: af.PayPalCaptureID || null,
+
+    // Status / audit (Airtable only — null for eTermin-only)
+    status: af.Status || null,
+    cancellationReason: af.CancellationReason || null,
+    cancellationLog: af.CancellationLog || null,
+    createdAt: af.CreatedAt || null
+  };
 }
 
 // ─── GET /api/portal/bookings ──────────────────────────────────────────────
 
 router.get('/bookings', async (req, res) => {
   try {
-    const { from, to, status } = req.query;
-    const { bookings, customers } = airtableConfig();
-    if (!bookings) return res.status(503).json({ error: 'bookings table not configured' });
+    const { from, to } = req.query;
+    if (!from || !to) {
+      return res.status(400).json({ error: 'from + to required (ISO datetime)' });
+    }
 
-    const filters = [];
-    if (from) filters.push(`IS_AFTER({SelectedSlot}, DATETIME_PARSE('${escapeFormulaString(from)}'))`);
-    if (to)   filters.push(`IS_BEFORE({SelectedSlot}, DATETIME_PARSE('${escapeFormulaString(to)}'))`);
-    if (status) filters.push(`{Status}='${escapeFormulaString(status)}'`);
+    // 1) Load all calendars (incl. inactive — historical bookings may live there)
+    const calendars = await loadCalendars();
+    const cals = calendars.filter(c => Number.isFinite(c.id));
+    if (!cals.length) return res.json({ bookings: [] });
 
-    let filterExpr = '';
-    if (filters.length === 1) filterExpr = filters[0];
-    else if (filters.length > 1) filterExpr = `AND(${filters.join(',')})`;
+    // 2) Query each calendar from eTermin, padded ±1 day around the window
+    const padDate = (iso, days) => {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().slice(0, 10);
+    };
+    const fromDate = padDate(from, -1);
+    const toDate = padDate(to, 1);
 
-    const sortQS = '&sort%5B0%5D%5Bfield%5D=SelectedSlot&sort%5B0%5D%5Bdirection%5D=asc';
-    const filterQS = filterExpr ? `?filterByFormula=${encodeURIComponent(filterExpr)}&pageSize=100${sortQS}` : `?pageSize=100${sortQS}`;
+    const allAptsTagged = (await Promise.all(cals.map(async cal => {
+      try {
+        const apts = await etermin.getAppointments(cal.id, fromDate, toDate);
+        return (apts || []).map(apt => ({ apt, calendarName: cal.name }));
+      } catch (err) {
+        console.warn(`[portal] eTermin getAppointments cal=${cal.id}:`, err.message);
+        return [];
+      }
+    }))).flat();
 
-    const data = await airtable('GET', bookings, filterQS);
-    const recs = data.records || [];
-
-    // Batch-fetch customers + bikes + eTermin-appointment-map (one window for the whole list)
-    const allCustomerIds = [...new Set(recs.flatMap(r => r.fields?.Customer || []))];
-    const allBikeIds = [...new Set(recs.flatMap(r => r.fields?.Bike || []))];
-
-    // Derive a tight date range from the actual slots in this list (fallback to query window).
-    const slots = recs.map(r => r.fields?.SelectedSlot).filter(Boolean).sort();
-    const aptFrom = slots[0] || from;
-    const aptTo = slots[slots.length - 1] || to;
-
-    const [custRecs, bikeRecs, maps] = await Promise.all([
-      customers && allCustomerIds.length ? fetchRelatedById(customers, allCustomerIds) : Promise.resolve([]),
-      airtableConfig().bikes && allBikeIds.length ? fetchRelatedById(airtableConfig().bikes, allBikeIds) : Promise.resolve([]),
-      aptFrom && aptTo ? fetchAppointmentMapFromETermin(aptFrom, aptTo) : Promise.resolve(null)
-    ]);
-    const custMap = new Map(custRecs.map(r => [r.id, pickCustomerFields(r)]));
-    const bikeMap = new Map(bikeRecs.map(r => [r.id, pickBikeFields(r)]));
-
-    const bookings_ = recs.map(rec => {
-      const cust = (rec.fields?.Customer || [])[0];
-      const bike = (rec.fields?.Bike || [])[0];
-      const customer = cust ? (custMap.get(cust) || null) : null;
-      const aptInfo = lookupApt(maps, {
-        eterminBookingId: rec.fields?.EterminBookingID,
-        slot: rec.fields?.SelectedSlot,
-        email: customer?.email
-      });
-      return pickBookingFields(rec, {
-        customer,
-        bike: bike ? (bikeMap.get(bike) || null) : null,
-        aptInfo
-      });
+    // 3) Filter to the exact requested window (UTC compare)
+    const fromMs = new Date(from).getTime();
+    const toMs = new Date(to).getTime();
+    const inWindow = allAptsTagged.filter(({ apt }) => {
+      if (!apt.StartDateTimeUTC) return false;
+      const ms = new Date(`${apt.StartDateTimeUTC}Z`).getTime();
+      return ms >= fromMs && ms < toMs;
     });
-    res.json({ bookings: bookings_ });
+
+    // 4) Enrich with Airtable for appointments where we have an ExternalID
+    const externalIds = [...new Set(inWindow
+      .map(({ apt }) => apt.ExternalID && String(apt.ExternalID))
+      .filter(Boolean))];
+
+    const airtableBookings = await fetchAirtableBookingsByExternalIds(externalIds);
+    const customerIds = [...new Set(airtableBookings.flatMap(r => r.fields?.Customer || []))];
+    const bikeIds = [...new Set(airtableBookings.flatMap(r => r.fields?.Bike || []))];
+    const { customers, bikes } = airtableConfig();
+    const [custRecs, bikeRecs] = await Promise.all([
+      customers && customerIds.length ? fetchRelatedById(customers, customerIds) : Promise.resolve([]),
+      bikes && bikeIds.length ? fetchRelatedById(bikes, bikeIds) : Promise.resolve([])
+    ]);
+    const customerMap = new Map(custRecs.map(r => [r.id, pickCustomerFields(r)]));
+    const bikeMap = new Map(bikeRecs.map(r => [r.id, pickBikeFields(r)]));
+    const enrichmentByExternalId = new Map();
+    for (const rec of airtableBookings) {
+      const eid = rec.fields?.EterminBookingID;
+      if (!eid) continue;
+      const cId = (rec.fields?.Customer || [])[0];
+      const bId = (rec.fields?.Bike || [])[0];
+      enrichmentByExternalId.set(String(eid), {
+        record: rec,
+        customer: cId ? (customerMap.get(cId) || null) : null,
+        bike: bId ? (bikeMap.get(bId) || null) : null
+      });
+    }
+
+    // 5) Merge
+    const merged = inWindow.map(({ apt, calendarName }) => {
+      const eid = apt.ExternalID ? String(apt.ExternalID) : null;
+      const enrich = eid ? enrichmentByExternalId.get(eid) : null;
+      return mergeAppointment(apt, calendarName, enrich);
+    });
+    merged.sort((a, b) => (a.selectedSlot || '').localeCompare(b.selectedSlot || ''));
+
+    res.json({ bookings: merged });
   } catch (err) {
     console.error('[portal] list bookings error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ─── GET /api/portal/bookings/:recordId ────────────────────────────────────
+// ─── GET /api/portal/bookings/:airtableId ──────────────────────────────────
+// Used by the cancel-mail flow to re-fetch fresh customer info. Takes the
+// Airtable record ID (rec...). For eTermin-only appointments this endpoint
+// is not applicable.
 
 router.get('/bookings/:recordId', async (req, res) => {
   try {
     const { recordId } = req.params;
     const { bookings } = airtableConfig();
     const data = await airtable('GET', bookings, `/${encodeURIComponent(recordId)}`);
-    const expanded = await expandBookingRecord(data);
-    res.json({ booking: expanded });
+    const f = data.fields || {};
+    const customerIds = f.Customer || [];
+    const bikeIds = f.Bike || [];
+    const eid = f.EterminBookingID ? String(f.EterminBookingID) : null;
+
+    const [custRecs, bikeRecs] = await Promise.all([
+      customerIds.length && airtableConfig().customers ? fetchRelatedById(airtableConfig().customers, customerIds) : Promise.resolve([]),
+      bikeIds.length && airtableConfig().bikes ? fetchRelatedById(airtableConfig().bikes, bikeIds) : Promise.resolve([])
+    ]);
+
+    // Try to find the live eTermin record for accurate time/calendar
+    let aptHit = null;
+    let calName = null;
+    if (eid) {
+      const slot = f.SelectedSlot;
+      const fromDate = slot ? String(slot).slice(0, 10) : null;
+      if (fromDate) {
+        const cals = (await loadCalendars()).filter(c => Number.isFinite(c.id));
+        for (const cal of cals) {
+          try {
+            const apts = await etermin.getAppointments(cal.id, fromDate, fromDate);
+            const match = (apts || []).find(a => String(a.ExternalID) === eid);
+            if (match) { aptHit = match; calName = cal.name; break; }
+          } catch { /* ignore */ }
+        }
+      }
+    }
+
+    const enrichment = {
+      record: data,
+      customer: custRecs[0] ? pickCustomerFields(custRecs[0]) : null,
+      bike: bikeRecs[0] ? pickBikeFields(bikeRecs[0]) : null
+    };
+
+    // If we found an eTermin record, mergeAppointment gives us the proper shape.
+    // Otherwise build from Airtable alone (graceful fallback for orphans).
+    let booking;
+    if (aptHit) {
+      booking = mergeAppointment(aptHit, calName, enrichment);
+    } else {
+      booking = {
+        id: data.id,
+        airtableId: data.id,
+        eterminBookingId: eid,
+        bookingRef: f.BookingRef || null,
+        selectedSlot: f.SelectedSlot || null,
+        durationMinutes: null,
+        calendarName: null,
+        isBlocker: false,
+        source: 'airtable-merged',
+        customer: enrichment.customer,
+        bike: enrichment.bike,
+        serviceType: f.ServiceType || null,
+        services: f.Services || null,
+        serviceIds: f.ServiceIDs || null,
+        problemDescription: f.ProblemDescription || null,
+        locationType: f.LocationType || null,
+        address: f.Address || null,
+        estimatedPrice: f.EstimatedPrice ?? null,
+        travelFee: f.TravelFee ?? null,
+        depositAmount: f.DepositAmount ?? null,
+        depositPaid: !!f.DepositPaid,
+        payPalOrderId: f.PayPalOrderID || null,
+        payPalCaptureId: f.PayPalCaptureID || null,
+        status: f.Status || null,
+        cancellationReason: f.CancellationReason || null,
+        cancellationLog: f.CancellationLog || null,
+        createdAt: f.CreatedAt || null
+      };
+    }
+
+    res.json({ booking });
   } catch (err) {
     console.error('[portal] booking detail error:', err);
     res.status(err.status || 500).json({ error: err.message });
   }
 });
 
-// ─── POST /api/portal/bookings/:recordId/cancel ────────────────────────────
+// ─── POST /api/portal/bookings/:airtableId/cancel ──────────────────────────
+// Takes the Airtable record ID. Only Airtable-backed bookings can be cancelled
+// via this endpoint (need PayPalCaptureID for refund + audit fields).
 
 router.post('/bookings/:recordId/cancel', async (req, res) => {
   const { recordId } = req.params;
