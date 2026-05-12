@@ -89,8 +89,10 @@ function pickBikeFields(rec) {
   };
 }
 
-function pickBookingFields(rec, { customer = null, bike = null, calendarName = null, durationMinutes = null } = {}) {
+function pickBookingFields(rec, { customer = null, bike = null, aptInfo = null } = {}) {
   const f = rec?.fields || {};
+  // eTermin is source of truth for time + duration when we found a match.
+  const selectedSlot = aptInfo?.startUtc || f.SelectedSlot || null;
   return {
     id: rec?.id,
     bookingRef: f.BookingRef || null,
@@ -104,7 +106,7 @@ function pickBookingFields(rec, { customer = null, bike = null, calendarName = n
     travelFee: f.TravelFee ?? null,
     depositAmount: f.DepositAmount ?? null,
     depositPaid: !!f.DepositPaid,
-    selectedSlot: f.SelectedSlot || null,
+    selectedSlot,
     eterminBookingId: f.EterminBookingID || null,
     payPalOrderId: f.PayPalOrderID || null,
     payPalCaptureId: f.PayPalCaptureID || null,
@@ -112,41 +114,52 @@ function pickBookingFields(rec, { customer = null, bike = null, calendarName = n
     cancellationReason: f.CancellationReason || null,
     cancellationLog: f.CancellationLog || null,
     createdAt: f.CreatedAt || null,
-    calendarName,
-    durationMinutes,
+    calendarName: aptInfo?.calendarName ?? null,
+    durationMinutes: aptInfo?.durationMinutes ?? null,
     customer,
     bike
   };
 }
 
 /**
- * Build a map appointment-key → { calendarName, durationMinutes } by asking
- * eTermin for each active calendar's appointments in the date range.
+ * Build a multi-keyed lookup of eTermin appointments by asking each active
+ * calendar for the date range.
  *
- * eTermin's POST /appointment returns IDs that don't reliably match what
- * GET /appointment returns (POST may return a UUID-ish reservation ID,
- * GET returns the numeric appointment ID). So we key by
- * `${startUTC[:16]}|${email_lc}` and `${startUTC[:16]}` as a fallback —
- * those are stable across both API directions.
+ * Match priority for portal bookings:
+ *   1. ExternalID — eTermin echoes our saved UUID here, this is exact.
+ *   2. StartDateTimeUTC + lowercased Email — robust if ID drifted.
+ *   3. StartDateTimeUTC alone — last-resort, rare collisions possible.
  *
- * 4 API calls (one per calendar) regardless of booking count.
+ * Returns: { byExternalId, byTimeEmail, byTime } maps with the same value
+ * shape { calendarName, calendarId, startUtc, durationMinutes }.
+ *
+ * 4 API calls total (one per calendar) regardless of booking count. The
+ * window is padded by 1 day on each side to absorb any TZ drift between
+ * Airtable's stored SelectedSlot and eTermin's actual scheduling.
  */
 async function fetchAppointmentMapFromETermin(fromIso, toIso) {
-  if (!fromIso || !toIso) return new Map();
+  const empty = { byExternalId: new Map(), byTimeEmail: new Map(), byTime: new Map() };
+  if (!fromIso || !toIso) return empty;
   const calendars = await loadCalendars();
-  const active = calendars.filter(c => c.aktiv && Number.isFinite(c.id));
-  if (!active.length) return new Map();
+  // Don't filter by `aktiv` — that flag controls the booking flow, but historical
+  // bookings can live in deactivated calendars (e.g. Blitz 2 mid-month). For the
+  // portal listing we want them all.
+  const active = calendars.filter(c => Number.isFinite(c.id));
+  if (!active.length) return empty;
 
-  // Pad the window by one day each side to absorb tz drift.
-  const fromDate = String(fromIso).slice(0, 10);
-  const toDate = String(toIso).slice(0, 10);
-
-  const map = new Map();
-  const setBoth = (startKey, email, info) => {
-    if (email) map.set(`${startKey}|${email.toLowerCase()}`, info);
-    // Fallback: only set the time-only key if not already taken (so emails win on collisions).
-    if (!map.has(startKey)) map.set(startKey, info);
+  // Pad ±1 day around the requested window.
+  const pad = (iso, days) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
   };
+  const fromDate = pad(fromIso, -1);
+  const toDate = pad(toIso, 1);
+
+  const byExternalId = new Map();
+  const byTimeEmail = new Map();
+  const byTime = new Map();
 
   await Promise.all(active.map(async cal => {
     try {
@@ -154,7 +167,7 @@ async function fetchAppointmentMapFromETermin(fromIso, toIso) {
       for (const apt of apts || []) {
         const startUtc = apt.StartDateTimeUTC || apt.StartDateTime;
         if (!startUtc) continue;
-        const startKey = String(startUtc).slice(0, 16); // YYYY-MM-DDTHH:MM
+        const startKey = String(startUtc).slice(0, 16);
 
         let durationMinutes = null;
         if (apt.StartDateTimeUTC && apt.EndDateTimeUTC) {
@@ -162,27 +175,40 @@ async function fetchAppointmentMapFromETermin(fromIso, toIso) {
           if (Number.isFinite(diff) && diff > 0) durationMinutes = Math.round(diff);
         }
 
-        setBoth(startKey, apt.Email, {
+        const info = {
           calendarName: cal.name,
           calendarId: cal.id,
+          startUtc: apt.StartDateTimeUTC ? `${apt.StartDateTimeUTC}Z` : null,
           durationMinutes
-        });
+        };
+
+        if (apt.ExternalID) byExternalId.set(String(apt.ExternalID), info);
+        if (apt.Email) byTimeEmail.set(`${startKey}|${apt.Email.toLowerCase()}`, info);
+        if (!byTime.has(startKey)) byTime.set(startKey, info);
       }
     } catch (err) {
       console.warn(`[portal] eTermin getAppointments cal=${cal.id}:`, err.message);
     }
   }));
-  return map;
+  return { byExternalId, byTimeEmail, byTime };
 }
 
-function lookupApt(aptMap, slot, email) {
-  if (!aptMap || !aptMap.size || !slot) return null;
-  const key = String(slot).slice(0, 16);
-  if (email) {
-    const hit = aptMap.get(`${key}|${String(email).toLowerCase()}`);
+function lookupApt(maps, { eterminBookingId, slot, email }) {
+  if (!maps) return null;
+  if (eterminBookingId) {
+    const hit = maps.byExternalId.get(String(eterminBookingId));
     if (hit) return hit;
   }
-  return aptMap.get(key) || null;
+  if (slot) {
+    const key = String(slot).slice(0, 16);
+    if (email) {
+      const hit = maps.byTimeEmail.get(`${key}|${String(email).toLowerCase()}`);
+      if (hit) return hit;
+    }
+    const hit = maps.byTime.get(key);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 async function fetchRelatedById(table, recordIds = []) {
@@ -200,19 +226,23 @@ async function expandBookingRecord(rec) {
   const customerIds = rec.fields?.Customer || [];
   const bikeIds = rec.fields?.Bike || [];
   const slot = rec.fields?.SelectedSlot;
+  const eterminBookingId = rec.fields?.EterminBookingID;
 
-  const [custRecs, bikeRecs, aptMap] = await Promise.all([
+  const [custRecs, bikeRecs, maps] = await Promise.all([
     customers && customerIds.length ? fetchRelatedById(customers, customerIds) : Promise.resolve([]),
     bikes && bikeIds.length ? fetchRelatedById(bikes, bikeIds) : Promise.resolve([]),
-    slot ? fetchAppointmentMapFromETermin(slot, slot) : Promise.resolve(new Map())
+    slot ? fetchAppointmentMapFromETermin(slot, slot) : Promise.resolve(null)
   ]);
   const customer = custRecs[0] ? pickCustomerFields(custRecs[0]) : null;
-  const aptInfo = lookupApt(aptMap, slot, customer?.email);
+  const aptInfo = lookupApt(maps, {
+    eterminBookingId,
+    slot,
+    email: customer?.email
+  });
   return pickBookingFields(rec, {
     customer,
     bike: bikeRecs[0] ? pickBikeFields(bikeRecs[0]) : null,
-    calendarName: aptInfo?.calendarName ?? null,
-    durationMinutes: aptInfo?.durationMinutes ?? null
+    aptInfo
   });
 }
 
@@ -248,10 +278,10 @@ router.get('/bookings', async (req, res) => {
     const aptFrom = slots[0] || from;
     const aptTo = slots[slots.length - 1] || to;
 
-    const [custRecs, bikeRecs, aptMap] = await Promise.all([
+    const [custRecs, bikeRecs, maps] = await Promise.all([
       customers && allCustomerIds.length ? fetchRelatedById(customers, allCustomerIds) : Promise.resolve([]),
       airtableConfig().bikes && allBikeIds.length ? fetchRelatedById(airtableConfig().bikes, allBikeIds) : Promise.resolve([]),
-      aptFrom && aptTo ? fetchAppointmentMapFromETermin(aptFrom, aptTo) : Promise.resolve(new Map())
+      aptFrom && aptTo ? fetchAppointmentMapFromETermin(aptFrom, aptTo) : Promise.resolve(null)
     ]);
     const custMap = new Map(custRecs.map(r => [r.id, pickCustomerFields(r)]));
     const bikeMap = new Map(bikeRecs.map(r => [r.id, pickBikeFields(r)]));
@@ -260,12 +290,15 @@ router.get('/bookings', async (req, res) => {
       const cust = (rec.fields?.Customer || [])[0];
       const bike = (rec.fields?.Bike || [])[0];
       const customer = cust ? (custMap.get(cust) || null) : null;
-      const aptInfo = lookupApt(aptMap, rec.fields?.SelectedSlot, customer?.email);
+      const aptInfo = lookupApt(maps, {
+        eterminBookingId: rec.fields?.EterminBookingID,
+        slot: rec.fields?.SelectedSlot,
+        email: customer?.email
+      });
       return pickBookingFields(rec, {
         customer,
         bike: bike ? (bikeMap.get(bike) || null) : null,
-        calendarName: aptInfo?.calendarName ?? null,
-        durationMinutes: aptInfo?.durationMinutes ?? null
+        aptInfo
       });
     });
     res.json({ bookings: bookings_ });
