@@ -1,0 +1,46 @@
+name: Email-Agent (täglich)
+
+on:
+  schedule:
+    # Täglich 06:30 UTC (= 07:30/08:30 deutsche Zeit). Cron in UTC.
+    - cron: "30 6 * * *"
+  workflow_dispatch: {} # manueller Start über die GitHub-Oberfläche
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Email-Agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          IMAP_HOST: ${{ secrets.IMAP_HOST }}
+          IMAP_PORT: ${{ secrets.IMAP_PORT }}
+          IMAP_SECURE: ${{ secrets.IMAP_SECURE }}
+          IMAP_USER: ${{ secrets.IMAP_USER }}
+          IMAP_PASSWORD: ${{ secrets.IMAP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          IMAP_DRAFTS_FOLDER: ${{ secrets.IMAP_DRAFTS_FOLDER }}
+          EMAIL_AGENT_MODEL: ${{ secrets.EMAIL_AGENT_MODEL }}
+        run: node scripts/email-agent.js
+
+      - name: Upload Report als Artefakt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: email-agent-report
+          path: email-agent/reports/
+          if-no-files-found: ignore
+          retention-days: 14

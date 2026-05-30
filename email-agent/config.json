@@ -1,0 +1,60 @@
+{
+  "imap": {
+    "folders": ["INBOX"]
+  },
+  "lookbackDays": 2,
+  "processedKeyword": "$SpoxAgentDone",
+  "draftWhenUncertain": true,
+  "categories": [
+    {
+      "name": "Buchungsanfrage",
+      "description": "Neue Terminanfrage oder Frage zur Buchung eines Fahrrad-Service.",
+      "draftReply": true
+    },
+    {
+      "name": "Terminänderung",
+      "description": "Verschiebung, Stornierung oder Bestätigung eines bestehenden Termins.",
+      "draftReply": true
+    },
+    {
+      "name": "Reklamation",
+      "description": "Beschwerde, Mangel oder Unzufriedenheit mit einer Leistung.",
+      "draftReply": true
+    },
+    {
+      "name": "Allgemeine Frage",
+      "description": "Frage zu Leistungen, Preisen, Öffnungszeiten, Standorten, Ablauf.",
+      "draftReply": true
+    },
+    {
+      "name": "Leasing/Geschäftskunde",
+      "description": "Anfragen zu Dienstrad-Leasing oder von Geschäftskunden.",
+      "draftReply": true
+    },
+    {
+      "name": "Rechnung/Buchhaltung",
+      "description": "Rechnungen, Mahnungen, Zahlungsbelege, Buchhaltung.",
+      "draftReply": false
+    },
+    {
+      "name": "Newsletter/Werbung",
+      "description": "Marketing, Newsletter, Werbung von Dritten.",
+      "draftReply": false
+    },
+    {
+      "name": "Benachrichtigung/System",
+      "description": "Automatische System-Mails, Bestätigungen, Zustellbenachrichtigungen.",
+      "draftReply": false
+    },
+    {
+      "name": "Spam",
+      "description": "Unerwünschte oder betrügerische Nachrichten.",
+      "draftReply": false
+    },
+    {
+      "name": "Sonstiges",
+      "description": "Passt in keine andere Kategorie.",
+      "draftReply": true
+    }
+  ]
+}
