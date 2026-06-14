@@ -16,7 +16,9 @@ const express = require('express');
 const router = express.Router();
 const paypal = require('../lib/paypal');
 const etermin = require('../lib/etermin');
-const { loadCalendars } = require('../lib/calendars');
+const { loadCalendars, updateCalendarFields, invalidateCache: invalidateCalendarsCache } = require('../lib/calendars');
+const config = require('../lib/config');
+const catalog = require('../lib/catalog');
 
 const BASE_URL = 'https://api.airtable.com/v0';
 
@@ -466,6 +468,271 @@ router.post('/bookings/:recordId/cancel', async (req, res) => {
   } catch (err) {
     console.error('[portal] cancel error:', err);
     res.status(500).json({ error: err.message, partial: result });
+  }
+});
+
+// ─── GET /api/portal/config ────────────────────────────────────────────────
+// Liest die globale Konfiguration (Tabelle Konfiguration, Label="global")
+// für das Portal-UI.
+
+router.get('/config', async (req, res) => {
+  try {
+    const fields = await config.getAll();
+    const recordId = await config.getRecordId();
+    res.json({ recordId, fields });
+  } catch (err) {
+    console.error('[portal] get config error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PATCH /api/portal/config ──────────────────────────────────────────────
+// Updates allowed numeric keys. Server-seitige Validation (keine negativen
+// Werte, sinnvolle Obergrenzen). Cache wird invalidiert.
+
+const CONFIG_VALIDATORS = {
+  TravelFeeEUR:               { min: 0,  max: 1000, label: 'Anfahrts-Pauschale' },
+  DepositAmountEUR:           { min: 0,  max: 1000, label: 'Anzahlung' },
+  InspektionFreeMinutes:      { min: 0,  max: 480,  label: 'Inspektions-Bonus-Minuten' },
+  RatePerMinuteEUR:           { min: 0,  max: 100,  label: 'Minutensatz' },
+  AppointmentBufferMinutes:   { min: 0,  max: 240,  label: 'Auftrags-Puffer' },
+  TravelBufferMinutesDefault: { min: 0,  max: 240,  label: 'Travel-Buffer-Default' }
+};
+
+router.patch('/config', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const patch = {};
+    const errors = [];
+
+    for (const [key, validator] of Object.entries(CONFIG_VALIDATORS)) {
+      if (body[key] === undefined) continue; // Feld nicht im Patch — ignorieren
+      const n = Number(body[key]);
+      if (!Number.isFinite(n)) {
+        errors.push(`${validator.label}: muss eine Zahl sein`);
+        continue;
+      }
+      if (n < validator.min) {
+        errors.push(`${validator.label}: darf nicht kleiner als ${validator.min} sein`);
+        continue;
+      }
+      if (n > validator.max) {
+        errors.push(`${validator.label}: darf nicht größer als ${validator.max} sein`);
+        continue;
+      }
+      patch[key] = n;
+    }
+
+    if (errors.length) return res.status(400).json({ error: 'validation_failed', details: errors });
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'Keine Felder zum Update' });
+
+    const updated = await config.update(patch);
+    res.json({ ok: true, fields: updated });
+  } catch (err) {
+    console.error('[portal] patch config error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/portal/calendars ─────────────────────────────────────────────
+// Reduzierte Sicht für das Portal-UI — exakt die Felder, die der Editor
+// rendert. Cache wird erst gefrischt (frische Daten beim Öffnen).
+
+router.get('/calendars', async (req, res) => {
+  try {
+    invalidateCalendarsCache();
+    const cals = await loadCalendars();
+    res.json({ calendars: cals });
+  } catch (err) {
+    console.error('[portal] list calendars error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PATCH /api/portal/calendars/:recordId ─────────────────────────────────
+// Editier-Felder: Working Hours, Pause-Fenster, MaxFahrzeit, Travel-Buffer,
+// Aktiv. Validation: PausenLaenge ≤ Pausen-Fenster, Arbeitsstart < Arbeitsende.
+
+const CAL_EDITABLE_FIELDS = [
+  'aktiv', 'startLat', 'startLng', 'maxMin',
+  'arbeitszeitStart', 'arbeitszeitEnde', 'samstagsAktiv',
+  'pausenLaenge', 'pausenFenstrStart', 'pausenFenstrEnde',
+  'travelBufferMin'
+];
+
+function parseHmStr(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]), mn = Number(m[2]);
+  if (h < 0 || h > 23 || mn < 0 || mn > 59) return null;
+  return h * 60 + mn;
+}
+
+router.patch('/calendars/:recordId', async (req, res) => {
+  const { recordId } = req.params;
+  const body = req.body || {};
+  const fields = {};
+  const errors = [];
+
+  // Map portal-camelCase → Airtable-Field-Names (gleicher Mapping wie api-admin)
+  const map = {
+    aktiv:                'Aktiv',
+    startLat:             'StartLat',
+    startLng:             'StartLng',
+    maxMin:               'MaxFahrzeitMin',
+    arbeitszeitStart:     'ArbeitszeitStart',
+    arbeitszeitEnde:      'ArbeitszeitEnde',
+    samstagsAktiv:        'SamstagsAktiv',
+    pausenLaenge:         'PausenLaenge',
+    pausenFenstrStart:    'PausenFenstrStart',
+    pausenFenstrEnde:     'PausenFenstrEnde',
+    travelBufferMin:      'TravelBufferMin'
+  };
+
+  for (const key of CAL_EDITABLE_FIELDS) {
+    if (body[key] === undefined) continue;
+    const v = body[key];
+    if (key === 'aktiv' || key === 'samstagsAktiv') {
+      fields[map[key]] = !!v;
+    } else if (key === 'arbeitszeitStart' || key === 'arbeitszeitEnde'
+            || key === 'pausenFenstrStart' || key === 'pausenFenstrEnde') {
+      if (v === '' || v === null) { fields[map[key]] = ''; continue; }
+      if (parseHmStr(v) == null) {
+        errors.push(`${key}: ungültiges Zeitformat (HH:MM erwartet)`);
+        continue;
+      }
+      fields[map[key]] = String(v);
+    } else {
+      // numeric (lat, lng, maxMin, pausenLaenge, travelBufferMin)
+      if (v === null || v === '') { fields[map[key]] = null; continue; }
+      const n = Number(v);
+      if (!Number.isFinite(n)) { errors.push(`${key}: keine gültige Zahl`); continue; }
+      if (key !== 'startLat' && key !== 'startLng' && n < 0) {
+        errors.push(`${key}: darf nicht negativ sein`);
+        continue;
+      }
+      fields[map[key]] = n;
+    }
+  }
+
+  // Cross-field validation
+  const aStart = parseHmStr(fields.ArbeitszeitStart ?? body.arbeitszeitStart);
+  const aEnd   = parseHmStr(fields.ArbeitszeitEnde  ?? body.arbeitszeitEnde);
+  if (aStart != null && aEnd != null && aStart >= aEnd) {
+    errors.push('ArbeitszeitStart muss vor ArbeitszeitEnde liegen');
+  }
+  const pStart = parseHmStr(fields.PausenFenstrStart ?? body.pausenFenstrStart);
+  const pEnd   = parseHmStr(fields.PausenFenstrEnde  ?? body.pausenFenstrEnde);
+  const pLen   = fields.PausenLaenge ?? body.pausenLaenge;
+  if (pStart != null && pEnd != null) {
+    if (pStart >= pEnd) errors.push('PausenFenstrStart muss vor PausenFenstrEnde liegen');
+    if (pLen != null && Number(pLen) > (pEnd - pStart)) {
+      errors.push('PausenLaenge ist größer als das Pausen-Fenster');
+    }
+  }
+
+  if (errors.length) return res.status(400).json({ error: 'validation_failed', details: errors });
+  if (Object.keys(fields).length === 0) return res.status(400).json({ error: 'Keine Felder zum Update' });
+
+  try {
+    const result = await updateCalendarFields(recordId, fields);
+    res.json({ ok: true, record: result });
+  } catch (err) {
+    console.error('[portal] update calendar error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/portal/catalog ───────────────────────────────────────────────
+// Liefert das ROHE Airtable-Catalog für den Portal-Editor: Preis, Dauer,
+// addPrice, addDuration, EterminID, etc. — gruppiert nach Kategorie.
+
+router.get('/catalog', async (req, res) => {
+  try {
+    catalog.invalidateCache();
+    const full = await catalog.loadCatalog();
+    res.json({ catalog: full });
+  } catch (err) {
+    console.error('[portal] list catalog error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PATCH /api/portal/catalog/:recordId ───────────────────────────────────
+// Patcht eine einzelne Leistung. Whitelist mit Airtable-Feldnamen.
+
+const CATALOG_EDITABLE = {
+  Leistung:                'string',
+  Beschreibung:            'string',
+  Preis:                   { type: 'number', min: 0,  max: 5000 },
+  PreisZusatz:             { type: 'number', min: 0,  max: 5000 },
+  Dauer:                   { type: 'number', min: 0,  max: 480  },
+  DauerZusatz:             { type: 'number', min: 0,  max: 480  },
+  Materialkosten:          { type: 'number', min: 0,  max: 5000 },
+  MaximaleZahl:            { type: 'number', min: 1,  max: 20   },
+  EterminID:               'string',
+  RadblitzID:              'string',
+  KategorieSortOrder:      { type: 'number', min: 0,  max: 9999 },
+  LeistungSortOrder:       { type: 'number', min: 0,  max: 9999 },
+  InInspektionEnthalten:   'boolean'
+};
+
+router.patch('/catalog/:recordId', async (req, res) => {
+  const { recordId } = req.params;
+  const body = req.body || {};
+  const fields = {};
+  const errors = [];
+
+  for (const [key, spec] of Object.entries(CATALOG_EDITABLE)) {
+    if (body[key] === undefined) continue;
+    const v = body[key];
+    if (spec === 'string') {
+      fields[key] = v == null ? '' : String(v);
+    } else if (spec === 'boolean') {
+      fields[key] = !!v;
+    } else {
+      const n = Number(v);
+      if (!Number.isFinite(n)) { errors.push(`${key}: keine gültige Zahl`); continue; }
+      if (n < spec.min) { errors.push(`${key}: < ${spec.min}`); continue; }
+      if (n > spec.max) { errors.push(`${key}: > ${spec.max}`); continue; }
+      fields[key] = n;
+    }
+  }
+
+  if (errors.length) return res.status(400).json({ error: 'validation_failed', details: errors });
+  if (Object.keys(fields).length === 0) return res.status(400).json({ error: 'Keine Felder zum Update' });
+
+  try {
+    const updated = await airtable(
+      'PATCH',
+      'tblxfZMerv61U0hjb',
+      `/${encodeURIComponent(recordId)}`,
+      { fields },
+      { typecast: true }
+    );
+    catalog.invalidateCache();
+    res.json({ ok: true, record: updated });
+  } catch (err) {
+    console.error('[portal] update catalog error:', err);
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/portal/reload ───────────────────────────────────────────────
+// Webhook für das Portal: Nach einem Publish invalidiert das Booking-Tool
+// SOFORT alle Konfigurations-Caches (statt auf das 5-Min-TTL zu warten).
+
+router.post('/reload', async (req, res) => {
+  try {
+    config.invalidateCache();
+    invalidateCalendarsCache();
+    catalog.invalidateCache();
+    console.log('[portal] reload webhook — caches invalidated');
+    res.json({ ok: true, reloaded: ['config', 'calendars', 'catalog'], at: new Date().toISOString() });
+  } catch (err) {
+    console.error('[portal] reload error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
