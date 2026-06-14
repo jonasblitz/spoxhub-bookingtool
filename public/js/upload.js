@@ -147,100 +147,6 @@ function escapeHtml(str) {
 }
 
 // ═══════════════════════════════════════════
-// BIKE PHOTO UPLOAD (Step 3)
-// ═══════════════════════════════════════════
-
-function initBikeUploadDropzone() {
-  const dropzone = document.getElementById('bike-upload-dropzone');
-  if (!dropzone) return;
-
-  dropzone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropzone.classList.add('drag-over');
-  });
-  dropzone.addEventListener('dragleave', () => {
-    dropzone.classList.remove('drag-over');
-  });
-  dropzone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropzone.classList.remove('drag-over');
-    handleBikePhoto(e.dataTransfer.files);
-  });
-}
-
-async function handleBikePhoto(fileList) {
-  if (!fileList || fileList.length === 0) return;
-  const file = fileList[0];
-
-  if (file.size > 20 * 1024 * 1024) {
-    alert('Datei zu groß (max. 20 MB).');
-    return;
-  }
-  if (!file.type.startsWith('image/')) {
-    alert('Bitte nur Bilddateien hochladen.');
-    return;
-  }
-
-  // Remove previous bike photo if exists
-  const existing = BookingState.get('bikePhoto');
-  if (existing?.filename) {
-    try { await fetch(API_BASE + '/api/upload/' + existing.filename, { method: 'DELETE' }); } catch (e) { /* ignore */ }
-  }
-
-  const preview = document.getElementById('bike-photo-preview');
-  if (preview) {
-    preview.classList.remove('hidden');
-    preview.innerHTML = `<div class="upload-item">
-      <div class="upload-item__thumb upload-item__loading">
-        <span class="inline-block w-5 h-5 border-2 border-text-muted border-t-transparent rounded-full animate-spin"></span>
-      </div>
-      <span class="upload-item__name">${escapeHtml(file.name)}</span>
-    </div>`;
-  }
-
-  const formData = new FormData();
-  formData.append('files', file);
-
-  try {
-    const res = await fetch(API_BASE + '/api/upload', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Upload fehlgeschlagen.'); if (preview) preview.classList.add('hidden'); return; }
-
-    const uploaded = data.files[0];
-    BookingState.set('bikePhoto', uploaded);
-    renderBikePhotoPreview(uploaded);
-  } catch (err) {
-    console.error('Bike photo upload error:', err);
-    if (preview) preview.classList.add('hidden');
-    alert('Upload fehlgeschlagen.');
-  }
-
-  const input = document.getElementById('bike-file-input');
-  if (input) input.value = '';
-}
-
-function renderBikePhotoPreview(photo) {
-  const preview = document.getElementById('bike-photo-preview');
-  if (!preview) return;
-  preview.classList.remove('hidden');
-  const imgSrc = photo.url.startsWith('http') ? photo.url : API_BASE + photo.url;
-  preview.innerHTML = `<div class="upload-item">
-    <img src="${imgSrc}" alt="${escapeHtml(photo.originalName)}" class="upload-item__thumb">
-    <span class="upload-item__name">${escapeHtml(photo.originalName)}</span>
-    <button type="button" class="upload-item__remove" onclick="removeBikePhoto()" title="Entfernen">&times;</button>
-  </div>`;
-}
-
-async function removeBikePhoto() {
-  const photo = BookingState.get('bikePhoto');
-  if (photo?.filename) {
-    try { await fetch(API_BASE + '/api/upload/' + photo.filename, { method: 'DELETE' }); } catch (e) { /* ignore */ }
-  }
-  BookingState.set('bikePhoto', null);
-  const preview = document.getElementById('bike-photo-preview');
-  if (preview) { preview.innerHTML = ''; preview.classList.add('hidden'); }
-}
-
 // Show problem-details section when services are selected
 BookingState.subscribe((key) => {
   if (key === 'selectedServices') {
@@ -254,7 +160,6 @@ BookingState.subscribe((key) => {
 
 document.addEventListener('DOMContentLoaded', () => {
   initUploadDropzone();
-  initBikeUploadDropzone();
 
   // Restore problem uploads
   const saved = BookingState.get('uploadedFiles');
@@ -267,12 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (desc) {
     const el = document.getElementById('problem-description');
     if (el) el.value = desc;
-  }
-
-  // Restore bike photo
-  const bikePhoto = BookingState.get('bikePhoto');
-  if (bikePhoto?.filename) {
-    renderBikePhotoPreview(bikePhoto);
   }
 
   // Show section if services already selected

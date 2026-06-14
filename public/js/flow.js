@@ -31,9 +31,18 @@ const FLOW_SCREENS = [
   { id: 'service-type',      autoAdvance: true,
     validate: () => !!BookingState.get('serviceType') || 'Bitte wähle Inspektion oder Reparatur.' },
 
-  { id: 'inspektion-additional', autoAdvance: true,
+  { id: 'inspektion-additional',
     show: () => BookingState.get('serviceType') === 'inspektion',
-    validate: () => BookingState.get('inspektionAddRepair') != null || 'Bitte triff eine Auswahl.' },
+    // Default ist "Nein" — kein expliziter Klick nötig. User klickt "Ja"
+    // nur wenn er zusätzlich reparieren möchte; sonst direkt "Weiter".
+    onEnter: () => {
+      if (BookingState.get('inspektionAddRepair') == null) {
+        BookingState.set('inspektionAddRepair', false);
+      }
+      // Button visuell synchronisieren mit aktuellem State
+      const btn = document.getElementById('btn-inspektion-add-yes');
+      if (btn) btn.classList.toggle('selected', BookingState.get('inspektionAddRepair') === true);
+    } },
 
   { id: 'repair-catalog',
     show: () => BookingState.get('serviceType') === 'reparatur'
@@ -44,30 +53,35 @@ const FLOW_SCREENS = [
       || 'Bitte wähle mindestens eine Leistung.' },
 
   { id: 'repair-more', autoAdvance: true,
-    show: () => BookingState.get('serviceType') === 'reparatur'
-                || BookingState.get('inspektionAddRepair') === true,
+    // Nur bei Inspektion mit Zusatz-Reparatur — bei reiner Reparatur überspringen
+    // (User kann im Catalog selbst weitere Leistungen hinzufügen).
+    show: () => BookingState.get('inspektionAddRepair') === true,
     validate: () => BookingState.get('needMore') != null || 'Bitte triff eine Auswahl.' },
+
+  // Termin-Wahl wandert nach vorn — der gewählte Slot wird in eTermin als
+  // Reservierung mit appattrib=0 / sync=0 angelegt und beim Booking-Confirm
+  // mit den finalen Daten geupdated.
+  { id: 'slot-select',
+    onEnter: () => window.onEnterSlotSelect?.(),
+    validate: () => !!BookingState.get('selectedSlot') || 'Bitte wähle einen Termin.' },
 
   { id: 'problem-description' /* optional — Skip immer erlaubt */ },
 
-  // Phase 3 — Dein Rad
+  // Phase 3 — Dein Rad (kombinierter Screen: Marke + Modell + Rahmennummer, alles optional)
   { id: 'bike-brand',
     validate: () => {
       const b = BookingState.get('bike') || {};
-      if (!b.marke) return 'Bitte wähle eine Marke.';
-      if (typeof isBrandBlacklisted === 'function' && isBrandBlacklisted(b.marke)) {
+      // Marke ist optional. Wenn gesetzt, gilt aber die Blacklist.
+      if (b.marke && typeof isBrandBlacklisted === 'function' && isBrandBlacklisted(b.marke)) {
         return `Leider können wir ${b.marke} aktuell nicht warten. Bitte wähle eine andere Marke oder kontaktiere uns.`;
       }
       return true;
     }
   },
 
-  { id: 'bike-model-color' /* alle optional */ },
-
   { id: 'bike-leasing',
     onEnter: () => window.onEnterBikeLeasing?.() },
 
-  { id: 'bike-photo' /* optional */ },
 
   // Phase 4 — Deine Daten
   { id: 'customer-name-contact',
@@ -92,11 +106,7 @@ const FLOW_SCREENS = [
     }
   },
 
-  // Phase 5 — Termin & Zahlung
-  { id: 'slot-select',
-    onEnter: () => window.onEnterSlotSelect?.(),
-    validate: () => !!BookingState.get('selectedSlot') || 'Bitte wähle einen Termin.' },
-
+  // Phase 5 — Zahlung
   { id: 'payment',
     onEnter: () => window.onEnterPayment?.(),
     validate: () => !!BookingState.get('depositPaid') || 'Bitte schließe die Anzahlung ab.' },

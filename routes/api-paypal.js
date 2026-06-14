@@ -1,16 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const paypal = require('../lib/paypal');
+const config = require('../lib/config');
 
-const DEPOSIT_AMOUNT = '20.00';
+// Fallback wenn Airtable nicht erreichbar — Live-Wert in Tabelle Konfiguration.
+const DEPOSIT_AMOUNT_FALLBACK_EUR = 20;
 
 /**
  * Create PayPal order for deposit (called from browser).
  */
 router.post('/create-order', async (req, res) => {
   try {
+    const depositEur = await config.get('DepositAmountEUR', DEPOSIT_AMOUNT_FALLBACK_EUR);
+    const amount = Number(depositEur).toFixed(2); // PayPal verlangt String mit 2 Nachkommastellen
     const order = await paypal.createOrder({
-      amount: DEPOSIT_AMOUNT,
+      amount,
       description: 'Anzahlung Fahrrad-Service — wird mit Rechnungsbetrag verrechnet'
     });
     res.json({ id: order.id });

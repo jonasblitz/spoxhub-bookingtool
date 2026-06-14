@@ -58,6 +58,13 @@
     @apply border-neon-lime shadow-neon bg-purple-700;
   }
 
+  /* Selected-State (z.B. "Ja, zusätzlich reparieren" Toggle) — pink */
+  .service-card.selected {
+    border-color: #e66eff;
+    background-color: rgba(230, 110, 255, 0.12);
+    box-shadow: 0 0 12px rgba(230, 110, 255, 0.25);
+  }
+
   .service-card__icon {
     @apply w-14 h-14 flex items-center justify-center
            text-neon-lime text-3xl;
@@ -188,7 +195,8 @@
   }
 
   .svc-card.selected {
-    @apply border-neon-lime bg-purple-800;
+    border-color: #e66eff;
+    background-color: rgba(230, 110, 255, 0.10);
   }
 
   .svc-card__header {
@@ -320,7 +328,9 @@
   }
 
   .leistung-card.selected {
-    @apply border-neon-lime shadow-neon bg-purple-700;
+    border-color: #e66eff;
+    background-color: rgba(230, 110, 255, 0.12);
+    box-shadow: 0 0 12px rgba(230, 110, 255, 0.25);
   }
 
   .leistung-card__name {
@@ -757,9 +767,9 @@
 }
 
 .svc-card.selected {
-  border-color: #E8FF00;
-  background-color: #5A0064;
-  box-shadow: 0 0 16px rgba(232, 255, 0, 0.15);
+  border-color: #e66eff;
+  background-color: rgba(230, 110, 255, 0.10);
+  box-shadow: 0 0 16px rgba(230, 110, 255, 0.20);
 }
 
 .accordion-header {
@@ -953,7 +963,7 @@
   width: 100%;
   max-width: 640px;
   margin: 0 auto;
-  padding: 28px 20px 120px;
+  padding: 28px 20px 40px;
 }
 
 .screen-panel {
@@ -1045,11 +1055,10 @@
 
 .screen-footer {
   position: sticky;
-  bottom: 64px; /* Raum für mobile summary bar */
-  margin: 32px -20px -120px;
+  bottom: 0;
+  margin: 32px -20px 0;
   padding: 18px 20px calc(18px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(61, 0, 70, 0) 0%, rgba(61, 0, 70, 0.85) 35%, rgba(61, 0, 70, 0.95) 100%);
-  backdrop-filter: blur(6px);
+  background: transparent;
   z-index: 10;
 }
 
@@ -1105,17 +1114,17 @@
   line-height: 1.4;
 }
 
-/* Mobile bottom bar */
+/* Mobile bar — am oberen Bildrand (war früher unten, jetzt oben) */
 .summary-bar-mobile {
   position: fixed;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
   z-index: 20;
-  background: linear-gradient(180deg, rgba(48, 0, 56, 0.92) 0%, rgba(61, 0, 70, 0.98) 100%);
+  background: linear-gradient(0deg, rgba(48, 0, 56, 0.92) 0%, rgba(61, 0, 70, 0.98) 100%);
   backdrop-filter: blur(12px);
-  border-top: 1px solid rgba(142, 77, 151, 0.4);
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  border-bottom: 1px solid rgba(142, 77, 151, 0.4);
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
 }
 
 .summary-bar-mobile__inner {
@@ -1142,6 +1151,11 @@
   transition: all 200ms ease;
 }
 
+/* Caret zeigt nach unten, wenn die Bar oben ist (Drawer öffnet nach unten) */
+.summary-bar-mobile__btn svg {
+  transform: rotate(180deg);
+}
+
 .summary-bar-mobile__btn:hover {
   background: rgba(232, 255, 0, 0.2);
 }
@@ -1157,16 +1171,18 @@
 
 .mobile-drawer__sheet {
   position: absolute;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
   background: #3D0046;
-  border-top: 1px solid rgba(142, 77, 151, 0.6);
-  border-radius: 20px 20px 0 0;
-  padding: 10px 20px calc(24px + env(safe-area-inset-bottom));
+  border-bottom: 1px solid rgba(142, 77, 151, 0.6);
+  border-radius: 0 0 20px 20px;
+  padding: calc(10px + env(safe-area-inset-top)) 20px 24px;
   max-height: 75vh;
   overflow-y: auto;
-  animation: drawerUp 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: drawerDown 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: flex;
+  flex-direction: column;
 }
 
 .mobile-drawer__handle {
@@ -1174,17 +1190,20 @@
   height: 4px;
   background: rgba(142, 77, 151, 0.6);
   border-radius: 9999px;
-  margin: 0 auto 16px;
+  margin: 16px auto 0;
+  /* Handle erscheint UNTEN am Sheet, weil das Sheet von oben einfährt */
+  order: 2;
 }
 
-@keyframes drawerUp {
-  0%   { transform: translateY(100%); }
+@keyframes drawerDown {
+  0%   { transform: translateY(-100%); }
   100% { transform: translateY(0); }
 }
 
-/* Extra bottom padding on body so content isn't hidden behind mobile bar */
+/* Extra top padding on body so content isn't hidden behind mobile bar */
 body {
-  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  padding-top: calc(72px + env(safe-area-inset-top));
+  padding-bottom: 0;
 }
 
 @media (min-width: 1024px) {

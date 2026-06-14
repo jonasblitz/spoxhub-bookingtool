@@ -1,19 +1,36 @@
 <section class="screen-panel is-hidden" data-screen="bike-brand">
-  <h2 class="screen-panel__question">Welche Marke fährst du?</h2>
-  <p class="screen-panel__hint">So können wir uns auf dein Rad einstellen.</p>
+  <h2 class="screen-panel__question">Dein Rad</h2>
+  <p class="screen-panel__hint">Details helfen uns, dein Rad schnell zu erkennen. <span class="text-text-muted">(alles optional)</span></p>
 
-  <div class="form-group relative">
-    <input type="text" id="b-marke" class="form-input" required autocomplete="off"
-           placeholder="Marke suchen..."
-           data-field="bike.marke" onblur="onBrandBlur(this)" oninput="onBrandInput(this)">
-    <div id="brand-dropdown" class="brand-dropdown hidden"></div>
-    <div id="brand-status" class="hidden mt-2"></div>
-    <span class="form-error hidden" role="alert"></span>
+  <div class="space-y-5">
+    <div class="form-group relative">
+      <label class="form-label !text-base !font-body !text-text-secondary" for="b-marke">Marke</label>
+      <input type="text" id="b-marke" class="form-input" autocomplete="off"
+             placeholder="Marke suchen…"
+             data-field="bike.marke" onblur="onBrandBlur(this)" oninput="onBrandInput(this)">
+      <div id="brand-dropdown" class="brand-dropdown hidden"></div>
+      <div id="brand-status" class="hidden mt-2"></div>
+      <span class="form-error hidden" role="alert"></span>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label !text-base !font-body !text-text-secondary" for="b-modell">Modell</label>
+      <input type="text" id="b-modell" class="form-input"
+             placeholder="z.B. Endurace CF 7"
+             data-field="bike.modell" oninput="updateCustomerField(this)">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label !text-base !font-body !text-text-secondary" for="b-rahmen">Rahmennummer</label>
+      <input type="text" id="b-rahmen" class="form-input"
+             data-field="bike.rahmennummer" oninput="updateCustomerField(this)">
+    </div>
   </div>
 
   <div class="screen-footer">
     <div class="screen-footer__inner">
       <button type="button" class="btn-cta" onclick="flowNext()">Weiter</button>
+      <a class="screen-skip" onclick="flowSkip()">Überspringen</a>
     </div>
   </div>
 </section>

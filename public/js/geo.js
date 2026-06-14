@@ -85,13 +85,23 @@ async function checkAddress() {
     BookingState.set('address', address);
     BookingState.set('addressFields', { street, plz, city });
     BookingState.set('geoResult', result);
+    // Hinweise zur Zufahrt (optional) — direkt aus dem Feld lesen, falls vorhanden
+    const notesEl = document.getElementById('address-notes');
+    if (notesEl) BookingState.set('addressNotes', (notesEl.value || '').trim());
 
     if (result.reachable) {
       showGeoFeedback('success', `Super! Wir können zu dir kommen. (Anfahrt: ${result.travelFee > 0 ? result.travelFee + ' €' : 'Kostenlos'})`);
       outOfArea?.classList.add('hidden');
     } else {
-      showGeoFeedback('error', 'Diese Adresse liegt leider außerhalb unseres Einsatzgebiets.');
-      outOfArea?.classList.remove('hidden');
+      // Server liefert einen spezifischen Fehler ("nicht gefunden" vs. "außerhalb
+      // Einsatzgebiet") — den zeigen wir 1:1 statt einer generischen Meldung.
+      const msg = result.error || 'Diese Adresse liegt leider außerhalb unseres Einsatzgebiets.';
+      showGeoFeedback('error', msg);
+      // "Out of area"-Hinweis (mit Werkstatt-CTA) nur zeigen, wenn die Adresse
+      // wirklich gefunden, aber zu weit entfernt war.
+      const isGeocodeFail = /nicht gefunden|nicht ermittelt/i.test(msg);
+      if (isGeocodeFail) outOfArea?.classList.add('hidden');
+      else outOfArea?.classList.remove('hidden');
     }
   } catch (err) {
     console.error('Geo check error:', err);
@@ -287,6 +297,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (p) p.value = fields.plz || '';
       if (c) c.value = fields.city || '';
     }
+    // Restore address notes (Hinweise zur Zufahrt)
+    const n = document.getElementById('address-notes');
+    const notes = BookingState.get('addressNotes');
+    if (n && notes) n.value = notes;
   }
 
   if (veh) {
@@ -295,3 +309,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+// Hinweise zur Zufahrt: live in den BookingState schreiben
+function onAddressNotesInput(el) {
+  BookingState.set('addressNotes', (el.value || '').trim());
+}
+window.onAddressNotesInput = onAddressNotesInput;

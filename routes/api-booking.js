@@ -4,8 +4,10 @@ const etermin = require('../lib/etermin');
 const analytics = require('../lib/analytics');
 const paypal = require('../lib/paypal');
 const voucher = require('./api-voucher');
-const { getActiveWorkshopCalendars } = require('../lib/calendars');
+const { getActiveWorkshopCalendars, loadCalendars } = require('../lib/calendars');
 const autoPause = require('../lib/auto-pause');
+const config = require('../lib/config');
+const reservations = require('../lib/reservations');
 
 /**
  * eTermin booking failed *after* PayPal capture: refund the deposit and log
@@ -53,24 +55,65 @@ async function handleBookingFailureAfterPayment(state, errorMessage) {
 
 /**
  * Pick the workshop calendar with the lowest appointment count for a given date.
- * Tie-broken by Priorität (asc).
+ * Tie-broken by Priorität (asc). Kept for backward-compat.
  */
 async function pickLeastBusyWorkshopCalendar(date) {
   const calendars = await getActiveWorkshopCalendars();
   if (calendars.length === 0) return null;
-  if (calendars.length === 1) return calendars[0].id;
+  return pickLeastBusyFromSet(date, calendars.map(c => c.id));
+}
 
-  const counts = await Promise.all(calendars.map(async cal => {
+/**
+ * Pick the least-busy calendar from a given set of IDs for a date.
+ *
+ * Sort order:
+ *   1. Termin-Count ascending (= least-busy first)
+ *   2. travelTime ascending (only for Mobil — caller passes via opts.travelTimes)
+ *   3. Priorität ascending (Stammdaten)
+ *
+ * @param {string} date         "YYYY-MM-DD"
+ * @param {number[]} calIds     Candidate calendar IDs (must be active)
+ * @param {object} [opts]
+ * @param {Object<number, number>} [opts.travelTimes]  Map calId → travelTimeMinutes (Mobil)
+ */
+async function pickLeastBusyFromSet(date, calIds, opts = {}) {
+  if (!Array.isArray(calIds) || calIds.length === 0) return null;
+  if (calIds.length === 1) return Number(calIds[0]);
+
+  const all = await loadCalendars();
+  const byId = new Map(all.map(c => [c.id, c]));
+  const travelTimes = opts.travelTimes || {};
+
+  const counts = await Promise.all(calIds.map(async id => {
+    const cal = byId.get(Number(id));
     try {
-      const apps = await etermin.getAppointments(cal.id, date, date);
-      return { id: cal.id, count: Array.isArray(apps) ? apps.length : 0, prio: cal.prio || 99 };
+      const apps = await etermin.getAppointments(id, date, date);
+      return {
+        id: Number(id),
+        count: Array.isArray(apps) ? apps.length : 0,
+        travel: Number.isFinite(travelTimes[id]) ? travelTimes[id] : Number.MAX_SAFE_INTEGER,
+        prio: cal?.prio ?? 99
+      };
     } catch (err) {
-      console.warn(`[booking] count error for cal ${cal.id}:`, err.message);
-      return { id: cal.id, count: Number.MAX_SAFE_INTEGER, prio: cal.prio || 99 };
+      console.warn(`[booking] count error for cal ${id}:`, err.message);
+      return {
+        id: Number(id),
+        count: Number.MAX_SAFE_INTEGER,
+        travel: Number.MAX_SAFE_INTEGER,
+        prio: cal?.prio ?? 99
+      };
     }
   }));
-  counts.sort((a, b) => (a.count - b.count) || (a.prio - b.prio));
-  console.log('[booking] workshop load:', counts.map(c => `${c.id}=${c.count}`).join(', '), '→ chose', counts[0].id);
+
+  counts.sort((a, b) =>
+    (a.count - b.count) ||
+    (a.travel - b.travel) ||
+    (a.prio - b.prio)
+  );
+
+  console.log('[booking] load:',
+    counts.map(c => `${c.id}=${c.count}` + (c.travel < Number.MAX_SAFE_INTEGER ? `/${c.travel}min` : '')).join(', '),
+    '→ chose', counts[0].id);
   return counts[0].id;
 }
 
@@ -94,20 +137,14 @@ async function persistBookingToAirtable(state, eterminBookingId, req) {
     // 1. Customer (upsert by Email)
     const customerRecord = await analytics.findOrCreateCustomer(customer.email, customer);
 
-    // 2. Bike photo URL
-    const bikePhotoUrl = state.bikePhoto?.filename
-      ? filenameToPublicUrl(state.bikePhoto.filename, req)
-      : null;
-
-    // 3. Bike (always new)
+    // 2. Bike (always new)
     const bikeRecord = await analytics.createBike(
       customerRecord?.id,
       bike,
-      state.vehicleType,
-      bikePhotoUrl
+      state.vehicleType
     );
 
-    // 4. Problem media URLs
+    // 3. Problem media URLs
     const problemMediaUrls = (state.uploadedFiles || [])
       .map(f => filenameToPublicUrl(f.filename, req))
       .filter(Boolean);
@@ -149,15 +186,21 @@ router.post('/confirm', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Keine Leistungen gewählt' });
   }
 
+  // Aufbau-Termine sind ausschließlich in der Werkstatt möglich.
+  if (state.serviceType === 'aufbau' && state.locationType !== 'werkstatt') {
+    return res.status(400).json({
+      success: false,
+      error: 'Aufbau-Termine sind nur in der Werkstatt möglich.'
+    });
+  }
+
   const c = state.customer || {};
   if (!c.vorname || !c.name || !c.email || !c.mobil) {
     return res.status(400).json({ success: false, error: 'Kundendaten unvollständig' });
   }
 
+  // Fahrradmarke ist optional (User kann ohne Marke buchen).
   const b = state.bike || {};
-  if (!b.marke) {
-    return res.status(400).json({ success: false, error: 'Fahrraddaten unvollständig' });
-  }
 
   // Payment validation — either a real PayPal capture OR a valid voucher code.
   // The voucher path skips PayPal entirely (no money flow), but still requires
@@ -168,11 +211,12 @@ router.post('/confirm', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Gutscheincode ungültig.' });
     }
     // Normalize so downstream code (etermin appattrib, Airtable) treats it
-    // identically to a paid deposit.
+    // identically to a paid deposit. amount kommt aus Konfiguration.
+    const voucherAmount = await config.get('DepositAmountEUR', 20);
     state.payment = {
       method: 'voucher',
       code: String(p.code).trim().toUpperCase(),
-      amount: 20,
+      amount: voucherAmount,
       status: 'completed'
     };
     state.depositPaid = true;
@@ -226,8 +270,6 @@ router.post('/confirm', async (req, res) => {
 
   // 4. Fotos / Videos (only if any)
   const mediaLines = [];
-  const bikePhotoUrl = fileUrl(state.bikePhoto?.filename);
-  if (bikePhotoUrl) mediaLines.push(`Bike-Foto: ${bikePhotoUrl}`);
   (state.uploadedFiles || []).forEach((f, i) => {
     const u = fileUrl(f.filename);
     if (u) mediaLines.push(`Problem ${i + 1}: ${u}`);
@@ -259,7 +301,8 @@ router.post('/confirm', async (req, res) => {
   // 7. Standort (Service-Location summary)
   const locationLines = [
     `${locationLabels[state.locationType] || state.locationType}`,
-    state.address ? state.address : null
+    state.address ? state.address : null,
+    state.addressNotes ? `Hinweise zur Zufahrt: ${state.addressNotes}` : null
   ].filter(Boolean);
   sections.push('══ SERVICE-ORT ══\n' + locationLines.join('\n'));
 
@@ -303,37 +346,89 @@ router.post('/confirm', async (req, res) => {
           .trim();
       }
 
-      // Resolve calendar:
-      //   - mobile flow: slot.calendarId is set (server-picked at address-check time)
-      //   - werkstatt flow: pick the least-busy active workshop calendar for that date
-      let resolvedCalendarId = slot.calendarId;
+      // Kalender-Auflösung:
+      //   - Reservation hält schon den Slot → der calendarId der Memory-Reservation
+      //     ist autoritativ (state.reservation.id + state.reservation.slot.calendarId)
+      //   - sonst: slot.calendarId / slot.eligibleCalendarIds / Werkstatt-Default
+      const reservationId = state.reservation?.id;
+      const liveReservation = reservationId ? reservations.get(reservationId) : null;
+
+      let resolvedCalendarId = liveReservation?.calendarId
+        || state.reservation?.slot?.calendarId
+        || slot.calendarId;
+      if (!resolvedCalendarId && Array.isArray(slot.eligibleCalendarIds) && slot.eligibleCalendarIds.length > 0) {
+        const travelTimes = {};
+        const geo = state.geoResult?.eligible;
+        if (Array.isArray(geo)) {
+          for (const e of geo) {
+            if (e?.calendarId && Number.isFinite(e?.travelTimeMinutes)) {
+              travelTimes[e.calendarId] = e.travelTimeMinutes;
+            }
+          }
+        }
+        resolvedCalendarId = await pickLeastBusyFromSet(slot.date, slot.eligibleCalendarIds, { travelTimes });
+      }
       if (!resolvedCalendarId) {
         resolvedCalendarId = await pickLeastBusyWorkshopCalendar(slot.date);
         if (!resolvedCalendarId) resolvedCalendarId = await getDefaultCalendarId();
       }
 
-      // Re-validate slot still available (race-condition guard) — only if local engine is in use
-      try {
-        const duration = state.pricing?.estimatedDurationMinutes || 60;
-        const liveSlots = await etermin.getAvailableSlots(resolvedCalendarId, slot.date, duration, eterminServiceIds);
-        const stillAvailable = liveSlots.some(s => s.start === slot.start);
-        if (!stillAvailable) {
-          return res.status(409).json({
-            success: false,
-            error: 'Dieser Termin wurde leider gerade gebucht. Bitte wähle einen anderen.'
-          });
+      // Reservation-Status prüfen: wenn der Client eine reservationId mitschickt,
+      // muss sie noch leben. Wenn sie abgelaufen ist, prüfen wir den Slot direkt
+      // gegen eTermin (großzügig — wenn frei, durchwinken; wenn belegt, 409).
+      if (reservationId && !liveReservation) {
+        try {
+          const duration = state.pricing?.estimatedDurationMinutes || 60;
+          const checkCalIds = Array.isArray(slot.eligibleCalendarIds) && slot.eligibleCalendarIds.length > 0
+            ? slot.eligibleCalendarIds
+            : [resolvedCalendarId];
+          const liveResults = await Promise.all(checkCalIds.map(id =>
+            etermin.getAvailableSlots(id, slot.date, duration, eterminServiceIds).catch(() => [])
+          ));
+          const stillAvailable = liveResults.some(slots => slots.some(s => s.start === slot.start));
+          if (!stillAvailable) {
+            return res.status(409).json({
+              success: false,
+              error: 'Deine Reservierung ist abgelaufen und der Slot wurde inzwischen vergeben. Bitte wähle einen anderen Termin.'
+            });
+          }
+          console.log(`[booking] reservation ${reservationId} expired, but slot is still free — confirming anyway`);
+        } catch (e) {
+          console.warn('[booking] post-expire revalidation failed:', e.message);
         }
-      } catch (e) {
-        console.warn('[booking] re-validation skipped:', e.message);
       }
 
+      // Re-validate slot still available — auch wenn KEINE reservationId mitgeschickt
+      // wurde (Legacy-Pfad oder voucher-direct). Wenn Reservation lebt, ist der
+      // Slot für andere geblockt, dieser Check kann übersprungen werden.
+      if (!liveReservation) {
+        try {
+          const duration = state.pricing?.estimatedDurationMinutes || 60;
+          const checkCalIds = Array.isArray(slot.eligibleCalendarIds) && slot.eligibleCalendarIds.length > 0
+            ? slot.eligibleCalendarIds
+            : [resolvedCalendarId];
+          const liveResults = await Promise.all(checkCalIds.map(id =>
+            etermin.getAvailableSlots(id, slot.date, duration, eterminServiceIds).catch(() => [])
+          ));
+          const stillAvailable = liveResults.some(slots => slots.some(s => s.start === slot.start));
+          if (!stillAvailable) {
+            return res.status(409).json({
+              success: false,
+              error: 'Dieser Termin wurde leider gerade gebucht. Bitte wähle einen anderen.'
+            });
+          }
+        } catch (e) {
+          console.warn('[booking] re-validation skipped:', e.message);
+        }
+      }
+
+      // Erstellt den eTermin-Kundentermin frisch via POST. Kein PUT mehr —
+      // damit verschwindet auch der frühere PUT-„Felder werden auf default
+      // gesetzt"-Bug und der Verify-Read-Retry-Loop.
       const result = await etermin.createAppointment({
         calendarId: resolvedCalendarId,
-        start: startDateTime,
-        end: endDateTime,
-        customer: c,
-        services: eterminServiceIds,
-        notes,
+        start: startDateTime, end: endDateTime,
+        customer: c, services: eterminServiceIds, notes,
         agbAccepted:        !!state.agbAccepted,
         privacyAccepted:    !!state.privacyAccepted,
         newsletter:         !!state.newsletterOptIn,
@@ -343,7 +438,9 @@ router.post('/confirm', async (req, res) => {
         location:           appointmentLocation
       });
 
-      console.log('eTermin appointment created:', result);
+      // Memory-Reservierung freigeben — der eTermin-Termin ist jetzt der echte
+      // Slot-Blocker. Idempotent (auch wenn schon abgelaufen).
+      if (reservationId) reservations.release(reservationId);
 
       const eterminBookingId = result.ID || result.IID;
 
@@ -402,6 +499,89 @@ router.post('/confirm', async (req, res) => {
     bookingId: 'BK-' + Date.now().toString(36).toUpperCase(),
     message: 'Buchung erfolgreich! Du erhältst in Kürze eine Bestätigung per E-Mail.'
   });
+});
+
+/**
+ * Reserve a slot — IN-MEMORY (lib/reservations.js).
+ *
+ * Anders als früher legt diese Route KEINEN eTermin-Hold an. Der Slot wird nur
+ * im Booking-Tool-Prozess für ~20 Min blockiert (siehe lib/reservations.js).
+ * eTermin sieht die Reservierung nicht — erst der /confirm-Pfad legt nach
+ * erfolgter Anzahlung den Kundentermin in eTermin an.
+ *
+ * Verlust bei pm2-Restart ist akzeptabel: betroffene User bekommen beim Confirm
+ * eine kontrollierte Fehlermeldung.
+ */
+router.post('/reserve-slot', async (req, res) => {
+  const { slot, serviceIds, geoEligible, sessionId } = req.body || {};
+  if (!slot?.date || !slot?.start || !slot?.end) {
+    return res.status(400).json({ success: false, error: 'Slot-Daten unvollständig' });
+  }
+
+  // Auflösung der konkreten Kalender-ID (gleiche Logik wie bisher):
+  //   1. slot.calendarId direkt → genau dieser (Legacy / Single-Cal-Use Case)
+  //   2. slot.eligibleCalendarIds → least-busy aus dem Set (Travel-Tie-Breaker)
+  //   3. sonst Werkstatt-Default
+  let calendarId = null;
+  if (slot.calendarId) {
+    calendarId = Number(slot.calendarId);
+  } else if (Array.isArray(slot.eligibleCalendarIds) && slot.eligibleCalendarIds.length > 0) {
+    const travelTimes = {};
+    if (Array.isArray(geoEligible)) {
+      for (const e of geoEligible) {
+        if (e?.calendarId && Number.isFinite(e?.travelTimeMinutes)) {
+          travelTimes[e.calendarId] = e.travelTimeMinutes;
+        }
+      }
+    }
+    calendarId = await pickLeastBusyFromSet(slot.date, slot.eligibleCalendarIds, { travelTimes });
+  } else {
+    calendarId = await pickLeastBusyWorkshopCalendar(slot.date);
+    if (!calendarId) calendarId = await getDefaultCalendarId();
+  }
+  if (!calendarId) {
+    return res.status(500).json({ success: false, error: 'Kein passender Kalender gefunden.' });
+  }
+
+  const services = Array.isArray(serviceIds) ? serviceIds.filter(Boolean) : [];
+
+  try {
+    const r = reservations.reserve({
+      calendarId,
+      date:  slot.date,
+      start: slot.start,
+      end:   slot.end,
+      sessionId: sessionId || null,
+      serviceIds: services,
+      durationMinutes: slot.durationMinutes || null
+    });
+    if (!r) {
+      return res.status(409).json({
+        success: false,
+        error: 'Dieser Slot wurde soeben von jemand anderem reserviert. Bitte wähle einen anderen Termin.'
+      });
+    }
+    res.json({
+      success: true,
+      reservationId: r.id,
+      expiresAt:    new Date(r.expiresAt).toISOString(),
+      calendarId
+    });
+  } catch (err) {
+    console.error('[booking] reserve-slot error:', err.message);
+    res.status(500).json({ success: false, error: 'Slot konnte nicht reserviert werden. Bitte versuche es erneut.' });
+  }
+});
+
+/**
+ * Release a previously held reservation (Memory-Store).
+ * Idempotent — kein Fehler wenn die Reservierung schon weg/abgelaufen ist.
+ */
+router.post('/release-slot', (req, res) => {
+  const { reservationId } = req.body || {};
+  if (!reservationId) return res.json({ success: true, released: false });
+  const released = reservations.release(reservationId);
+  res.json({ success: true, released });
 });
 
 async function getDefaultCalendarId() {

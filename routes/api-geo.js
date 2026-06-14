@@ -2,13 +2,17 @@ const express = require('express');
 const router = express.Router();
 const { geocodeAddress, checkReachabilityFrom } = require('../lib/traveltime');
 const { getActiveMobileCalendars } = require('../lib/calendars');
+const config = require('../lib/config');
 
-// Travel fee — currently constant for all mobile bookings.
-const TRAVEL_FEE_EUR = 20;
+// Fallback wenn Airtable-Config nicht erreichbar — Live-Wert kommt aus Tabelle Konfiguration.
+const TRAVEL_FEE_FALLBACK_EUR = 20;
 
 router.post('/check', async (req, res) => {
   const { address } = req.body;
   if (!address) return res.status(400).json({ error: 'Keine Adresse angegeben' });
+
+  // Travel-Fee jetzt zentral aus Konfiguration (mit Fallback).
+  const TRAVEL_FEE_EUR = await config.get('TravelFeeEUR', TRAVEL_FEE_FALLBACK_EUR);
 
   // Mock fallback if TravelTime keys missing (dev only)
   if (!process.env.TRAVELTIME_APP_ID || !process.env.TRAVELTIME_API_KEY) {
@@ -49,6 +53,7 @@ router.post('/check', async (req, res) => {
     try {
       const r = await checkReachabilityFrom(coords.lat, coords.lng,
         { lat: cal.lat, lng: cal.lng }, cal.maxMin);
+      console.log(`[geo] check ${cal.name} (limit=${cal.maxMin} min): reachable=${r.reachable}, travel=${r.travelTimeMinutes ?? '–'} min`);
       return { ...r, calendarId: cal.id, calendarName: cal.name, prio: cal.prio };
     } catch (err) {
       console.error(`[geo] reachability error for cal ${cal.id}:`, err.message);

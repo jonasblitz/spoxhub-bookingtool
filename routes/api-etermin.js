@@ -1,20 +1,42 @@
 const express = require('express');
 const router = express.Router();
 const etermin = require('../lib/etermin');
-const { getActiveWorkshopCalendars } = require('../lib/calendars');
+const { getActiveWorkshopCalendars, loadCalendars } = require('../lib/calendars');
 
 /**
- * Resolve a calendar ID for a query.
- *   - If frontend explicitly passed calendarId → use it (mobile case).
- *   - Otherwise pick the highest-priority active workshop calendar (werkstatt case).
- *     For slot display, both workshops have identical hours, so picking one is representative.
+ * Resolve the SET of calendar IDs to query.
+ *
+ *   1. Frontend explicitly passes `eligibleCalendarIds` (kommagetrennt) →
+ *      werden 1:1 genutzt (Mobil-Fall: alle erreichbaren Kalender).
+ *   2. Frontend passes single `calendarId` → nur dieser eine (Legacy /
+ *      Single-Cal Use Cases).
+ *   3. Nothing passed → alle aktiven Werkstatt-Kalender (Werkstatt-Fall).
+ *
+ * Liefert ein Array von Number-IDs, sortiert nach `prio` aufsteigend.
  */
-async function resolveCalendarId(rawCalendarId) {
-  if (rawCalendarId) return Number(rawCalendarId);
+async function resolveCalendarIds(rawCalendarId, eligibleCsv) {
+  const all = await loadCalendars();
+  const activeById = new Map(all.filter(c => c.aktiv).map(c => [c.id, c]));
+
+  // Helper: sortiere nach prio asc, fallback id
+  const sortByPrio = ids => ids
+    .map(id => activeById.get(Number(id)))
+    .filter(Boolean)
+    .sort((a, b) => (a.prio || 99) - (b.prio || 99))
+    .map(c => c.id);
+
+  if (eligibleCsv) {
+    const ids = String(eligibleCsv).split(',').map(s => Number(s.trim())).filter(Boolean);
+    return sortByPrio(ids);
+  }
+  if (rawCalendarId) {
+    const id = Number(rawCalendarId);
+    return activeById.has(id) ? [id] : [];
+  }
   const workshops = await getActiveWorkshopCalendars();
-  if (workshops.length === 0) return null;
-  workshops.sort((a, b) => (a.prio || 99) - (b.prio || 99));
-  return workshops[0].id;
+  return workshops
+    .sort((a, b) => (a.prio || 99) - (b.prio || 99))
+    .map(w => w.id);
 }
 
 router.get('/calendars', async (req, res) => {
@@ -33,7 +55,7 @@ router.get('/calendars', async (req, res) => {
 });
 
 router.get('/availability', async (req, res) => {
-  const { year, month, duration, calendarId } = req.query;
+  const { year, month, duration, calendarId, eligibleCalendarIds } = req.query;
 
   if (!year || !month) {
     return res.status(400).json({ error: 'Jahr und Monat erforderlich' });
@@ -56,12 +78,33 @@ router.get('/availability', async (req, res) => {
   }
 
   try {
-    const calId = await resolveCalendarId(calendarId);
-    if (!calId) return res.json([]);
+    const calIds = await resolveCalendarIds(calendarId, eligibleCalendarIds);
+    if (calIds.length === 0) return res.json([]);
 
     const serviceIdList = req.query.serviceIds ? req.query.serviceIds.split(',').map(Number).filter(Boolean) : [];
-    const availability = await etermin.getMonthAvailability(calId, parseInt(year), parseInt(month), parseInt(duration) || 60, serviceIdList);
-    res.json(availability);
+    const dur = parseInt(duration) || 60;
+
+    // Pro Kalender getMonthAvailability holen, dann pro Datum mergen:
+    //   available = OR über alle Kalender
+    //   slotCount = MAX über alle Kalender
+    const perCal = await Promise.all(calIds.map(id =>
+      etermin.getMonthAvailability(id, parseInt(year), parseInt(month), dur, serviceIdList).catch(() => [])
+    ));
+
+    const byDate = new Map();
+    for (const arr of perCal) {
+      for (const d of (arr || [])) {
+        const prev = byDate.get(d.date);
+        if (!prev) {
+          byDate.set(d.date, { date: d.date, available: !!d.available, slotCount: d.slotCount || 0 });
+        } else {
+          prev.available = prev.available || !!d.available;
+          prev.slotCount = Math.max(prev.slotCount, d.slotCount || 0);
+        }
+      }
+    }
+    const merged = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+    res.json(merged);
   } catch (err) {
     console.error('eTermin availability error:', err.message);
     res.status(500).json({ error: 'Verfügbarkeit konnte nicht geladen werden.' });
@@ -69,7 +112,7 @@ router.get('/availability', async (req, res) => {
 });
 
 router.get('/slots', async (req, res) => {
-  const { date, duration, calendarId } = req.query;
+  const { date, duration, calendarId, eligibleCalendarIds } = req.query;
 
   if (!date) {
     return res.status(400).json({ error: 'Kein Datum angegeben' });
@@ -81,12 +124,36 @@ router.get('/slots', async (req, res) => {
   }
 
   try {
-    const calId = await resolveCalendarId(calendarId);
-    if (!calId) return res.json([]);
+    const calIds = await resolveCalendarIds(calendarId, eligibleCalendarIds);
+    if (calIds.length === 0) return res.json([]);
 
     const serviceIdList = req.query.serviceIds ? req.query.serviceIds.split(',').map(Number).filter(Boolean) : [];
-    const slots = await etermin.getAvailableSlots(calId, date, parseInt(duration) || 60, serviceIdList);
-    res.json(slots);
+    const dur = parseInt(duration) || 60;
+
+    // Pro Kalender getAvailableSlots holen, dann pro {start-end} mergen.
+    // Slots, die in mehreren Kalendern frei sind, sammeln alle eligiblen IDs.
+    const perCal = await Promise.all(calIds.map(id =>
+      etermin.getAvailableSlots(id, date, dur, serviceIdList)
+        .then(slots => ({ id, slots: slots || [] }))
+        .catch(err => {
+          console.warn(`[slots] cal ${id} failed: ${err.message}`);
+          return { id, slots: [] };
+        })
+    ));
+
+    const slotMap = new Map(); // key: `${start}-${end}` → { start, end, label, eligibleCalendarIds: [] }
+    for (const { id, slots } of perCal) {
+      for (const s of slots) {
+        const key = `${s.start}-${s.end}`;
+        if (!slotMap.has(key)) {
+          slotMap.set(key, { ...s, eligibleCalendarIds: [] });
+        }
+        slotMap.get(key).eligibleCalendarIds.push(id);
+      }
+    }
+
+    const merged = [...slotMap.values()].sort((a, b) => a.start.localeCompare(b.start));
+    res.json(merged);
   } catch (err) {
     console.error('eTermin slots error:', err.message);
     res.json(generateMockSlots(date, parseInt(duration) || 60));

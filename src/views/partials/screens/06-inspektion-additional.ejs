@@ -3,8 +3,9 @@
   <p class="screen-panel__hint">Wir können beides in einem Termin erledigen.</p>
 
   <div class="grid grid-cols-1 gap-3">
-    <button type="button" class="service-card !flex-row !text-left !p-5 !gap-4"
-            onclick="chooseInspektionAdditional(true)">
+    <button type="button" id="btn-inspektion-add-yes"
+            class="service-card !flex-row !text-left !p-5 !gap-4"
+            onclick="chooseInspektionAdditionalAndAdvance()">
       <span class="service-card__icon shrink-0">
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
              fill="none" stroke="currentColor" stroke-width="1.5"
@@ -15,18 +16,11 @@
       </span>
       <span class="service-card__label">Ja, zusätzlich reparieren</span>
     </button>
+  </div>
 
-    <button type="button" class="service-card !flex-row !text-left !p-5 !gap-4"
-            onclick="chooseInspektionAdditional(false)">
-      <span class="service-card__icon shrink-0">
-        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
-             fill="none" stroke="currentColor" stroke-width="1.5"
-             stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </span>
-      <span class="service-card__label">Nein, nur Inspektion</span>
-    </button>
+  <div class="screen-footer">
+    <div class="screen-footer__inner">
+      <button type="button" class="btn-cta" onclick="flowNext()">Weiter</button>
+    </div>
   </div>
 </section>

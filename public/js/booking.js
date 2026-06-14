@@ -7,16 +7,23 @@ let selectedDate = null;
 let monthAvailability = {}; // { 'YYYY-MM-DD': { available, slotCount } }
 
 /**
- * Returns the calendar ID to query for slots/availability.
- *   - Mobile: server picked one at address-check time (state.geoResult.calendarId).
- *   - Werkstatt: returns null → server picks the priority-1 workshop calendar.
+ * Returns the LIST of calendar IDs the user is eligible to book in.
+ *   - Mobile: alle erreichbaren Kalender aus dem Geo-Check (geoResult.eligible).
+ *     Server bildet daraus die Union der freien Slots.
+ *   - Werkstatt: leeres Array → Server nutzt alle aktiven Werkstatt-Kalender.
  */
-function getCalendarId() {
+function getCalendarIds() {
   const locationType = BookingState.get('locationType');
   if (locationType === 'mobil' || locationType === 'anderer_ort') {
-    return BookingState.get('geoResult')?.calendarId || null;
+    const eligible = BookingState.get('geoResult')?.eligible;
+    if (Array.isArray(eligible) && eligible.length > 0) {
+      return eligible.map(e => Number(e.calendarId)).filter(Boolean);
+    }
+    // Fallback: Single-Cal-Pick (alte Geo-Antwort)
+    const single = BookingState.get('geoResult')?.calendarId;
+    return single ? [Number(single)] : [];
   }
-  return null; // werkstatt — server picks
+  return []; // werkstatt — server picks all active workshops
 }
 
 async function initBookingStep() {
@@ -123,8 +130,13 @@ function getEterminServiceIds() {
 async function loadMonthAvailability() {
   const { year, month } = currentMonth;
   const m = month + 1;
-  const calendarId = getCalendarId();
-  const duration = BookingState.get('pricing')?.estimatedDurationMinutes || 60;
+  const calIds = getCalendarIds();
+  // Slot-Engine plant mit der GEPUFFERTEN Dauer (Service + 15 Min), damit zwei
+  // aufeinanderfolgende Termine im Kalender nicht überlappen.
+  const pricing = BookingState.get('pricing');
+  const duration = pricing?.appointmentDurationMinutes
+                || pricing?.estimatedDurationMinutes
+                || 60;
   const serviceIds = getEterminServiceIds();
 
   const grid = document.getElementById('month-grid');
@@ -132,7 +144,7 @@ async function loadMonthAvailability() {
 
   try {
     let url = `${API_BASE}/api/etermin/availability?year=${year}&month=${m}&duration=${duration}`;
-    if (calendarId)             url += `&calendarId=${calendarId}`;
+    if (calIds.length > 0)      url += `&eligibleCalendarIds=${calIds.join(',')}`;
     if (serviceIds.length > 0)  url += `&serviceIds=${serviceIds.join(',')}`;
     const res = await fetch(url);
     const data = await res.json();
@@ -299,6 +311,18 @@ function formatDateStr(date) {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Addiere Minuten zu einer "HH:MM"-Uhrzeit und gib das Ergebnis wieder
+ * als "HH:MM" zurück (Stundenüberlauf wird korrekt behandelt).
+ */
+function addMinutesToHM(hm, minutes) {
+  const [h, m] = (hm || '00:00').split(':').map(Number);
+  const total = h * 60 + m + (Number(minutes) || 0);
+  const newH = Math.floor(total / 60) % 24;
+  const newM = total % 60;
+  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+}
+
 // ═══════════════════════════════════════════
 // SLOTS
 // ═══════════════════════════════════════════
@@ -327,11 +351,17 @@ async function loadSlots(dateStr) {
   if (noSlots) noSlots.classList.add('hidden');
 
   try {
-    const duration = BookingState.get('pricing')?.estimatedDurationMinutes || 60;
-    const calendarId = getCalendarId();
+    const pricing = BookingState.get('pricing');
+    // Slot-Engine bekommt die GEPUFFERTE Dauer (Service + 15 Min Puffer).
+    const duration = pricing?.appointmentDurationMinutes
+                  || pricing?.estimatedDurationMinutes
+                  || 60;
+    // Kunde sieht in den Slot-Buttons aber die reine Service-End-Zeit.
+    const serviceMin = pricing?.estimatedDurationMinutes || duration;
+    const calIds = getCalendarIds();
     const serviceIds = getEterminServiceIds();
     let slotUrl = `${API_BASE}/api/etermin/slots?date=${dateStr}&duration=${duration}`;
-    if (calendarId)             slotUrl += `&calendarId=${calendarId}`;
+    if (calIds.length > 0)      slotUrl += `&eligibleCalendarIds=${calIds.join(',')}`;
     if (serviceIds.length > 0)  slotUrl += `&serviceIds=${serviceIds.join(',')}`;
     const res = await fetch(slotUrl);
     const slots = await res.json();
@@ -343,12 +373,20 @@ async function loadSlots(dateStr) {
       return;
     }
 
-    slotsGrid.innerHTML = slots.map(slot =>
-      `<button type="button" class="slot-btn" data-slot-start="${slot.start}" data-slot-end="${slot.end}"
+    // Pro Slot die `eligibleCalendarIds` als data-Attribut speichern, damit
+    // selectSlot() sie in den BookingState übernehmen kann (Server pickt
+    // beim Reservieren den least-busy aus diesem Set).
+    // Im Button-Label zeigen wir die Service-End-Zeit (ohne Puffer),
+    // im data-slot-end aber das gepufferte Ende (das eTermin reserviert).
+    slotsGrid.innerHTML = slots.map(slot => {
+      const cals = (slot.eligibleCalendarIds || []).join(',');
+      const displayEnd = addMinutesToHM(slot.start, serviceMin);
+      return `<button type="button" class="slot-btn" data-slot-start="${slot.start}" data-slot-end="${slot.end}"
+               data-eligible-cals="${cals}"
                onclick="selectSlot(this, '${slot.start}', '${slot.end}')">
-        ${slot.start} – ${slot.end}
-      </button>`
-    ).join('');
+        ${slot.start} – ${displayEnd}
+      </button>`;
+    }).join('');
   } catch (err) {
     console.error('Slots error:', err);
     if (loading) loading.classList.add('hidden');
@@ -359,6 +397,86 @@ async function loadSlots(dateStr) {
   }
 }
 
+/**
+ * Reserve the chosen slot in eTermin (appattrib=0, sync=0) and advance.
+ * If we already hold a reservation for a *different* slot, release it first.
+ * If the same slot is already reserved, skip and advance.
+ */
+async function confirmSlotAndAdvance() {
+  const slot = BookingState.get('selectedSlot');
+  if (!slot) {
+    if (typeof flowFlashError === 'function') flowFlashError('Bitte wähle einen Termin.');
+    return;
+  }
+
+  const existing = BookingState.get('reservation');
+  // sameSlot: gleicher Slot, Reservation noch gültig. calendarId der Reservation
+  // muss in den jetzigen eligibleCalendarIds enthalten sein (sonst hat sich
+  // die Eligible-Liste geändert, z.B. weil zwischenzeitlich ein Cal deaktiviert
+  // wurde — dann lieber neu reservieren).
+  const eligible = slot.eligibleCalendarIds || [];
+  const sameSlot = existing?.slot
+    && existing.slot.date === slot.date
+    && existing.slot.start === slot.start
+    && eligible.includes(Number(existing.slot.calendarId))
+    && new Date(existing.expiresAt) > new Date();
+
+  if (sameSlot) {
+    flowNext();
+    return;
+  }
+
+  const btn = document.getElementById('btn-slot-next');
+  const originalLabel = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Reserviere…'; }
+
+  // Release stale reservation in the background — failure is non-fatal.
+  if (existing?.id) {
+    fetch(API_BASE + '/api/booking/release-slot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reservationId: existing.id })
+    }).catch(() => {});
+    BookingState.set('reservation', null);
+  }
+
+  try {
+    const services = BookingState.get('selectedServices') || [];
+    const serviceIds = [...new Set(services.map(s => s.eterminId).filter(Boolean))];
+    // Geo-Eligible mit Fahrtzeiten mitschicken — Server nutzt das als Tie-Breaker.
+    const geoEligible = BookingState.get('geoResult')?.eligible || null;
+    const res = await fetch(API_BASE + '/api/booking/reserve-slot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slot,
+        serviceIds,
+        locationType: BookingState.get('locationType'),
+        address: BookingState.get('address'),
+        geoEligible
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Reservierung fehlgeschlagen.');
+    }
+    // Server-pickter Kalender in den BookingState übernehmen.
+    BookingState.set('reservation', {
+      id: data.reservationId,
+      expiresAt: data.expiresAt,
+      slot: { ...slot, calendarId: data.calendarId }
+    });
+    flowNext();
+  } catch (err) {
+    console.error('reserve-slot error:', err);
+    if (typeof flowFlashError === 'function') {
+      flowFlashError(err.message || 'Termin konnte nicht reserviert werden.');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel || 'Weiter'; }
+  }
+}
+window.confirmSlotAndAdvance = confirmSlotAndAdvance;
+
 function selectSlot(el, start, end) {
   document.querySelectorAll('.slot-btn').forEach(btn => btn.classList.remove('selected'));
   el.classList.add('selected');
@@ -367,11 +485,17 @@ function selectSlot(el, start, end) {
     weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric'
   })} um ${start} Uhr`;
 
+  // Eligible-Cal-IDs aus dem data-Attribut (vom Server pro Slot mitgegeben).
+  // Fallback auf getCalendarIds() falls Attribut fehlt (z.B. Mock-Pfad).
+  const elig = (el?.dataset?.eligibleCals || '')
+    .split(',').map(s => Number(s.trim())).filter(Boolean);
+  const eligibleCalendarIds = elig.length > 0 ? elig : getCalendarIds();
+
   BookingState.set('selectedSlot', {
     start, end,
     date: formatDateStr(selectedDate),
     label,
-    calendarId: getCalendarId()
+    eligibleCalendarIds
   });
 
   // Enable slot-next button

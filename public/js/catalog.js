@@ -10,6 +10,13 @@ let catalogData = null;
 // ═══════════════════════════════════════════
 
 async function chooseServiceType(type) {
+  // Sonderfall „Aufbau": nur in der Werkstatt möglich.
+  if (type === 'aufbau' && BookingState.get('locationType') !== 'werkstatt') {
+    // Modal öffnen — die eigentliche Auswahl erfolgt erst nach Bestätigung.
+    openAufbauModal();
+    return;
+  }
+
   BookingState.set('serviceType', type);
 
   if (type === 'inspektion') {
@@ -34,6 +41,36 @@ async function chooseServiceType(type) {
       BookingState.set('selectedServices', services);
       recalculatePricing();
     }
+  } else if (type === 'aufbau') {
+    // Repair-Flags zurücksetzen — der Reparatur-Catalog wird übersprungen
+    BookingState.set('inspektionAddRepair', null);
+    BookingState.set('knowWhat', null);
+    BookingState.set('needMore', null);
+
+    // Aufbau-Leistung automatisch in selectedServices pushen
+    if (!catalogData) await loadCatalog();
+    const aufbau = findAufbauLeistung(catalogData);
+    if (aufbau) {
+      const services = (BookingState.get('selectedServices') || [])
+        .filter(s => s.bereich !== 'Aufbau');
+      services.push({
+        id: aufbau.id,
+        name: aufbau.name,
+        bereich: 'Aufbau',
+        price: aufbau.price,
+        duration: aufbau.duration,
+        eterminId: aufbau.eterminId || null
+      });
+      BookingState.set('selectedServices', services);
+      recalculatePricing();
+    } else {
+      // Fail-loud: Aufbau-Leistung fehlt im Katalog — Werkstatt muss das prüfen
+      console.error('[catalog] Aufbau-Leistung nicht im Catalog gefunden!');
+      if (typeof flowFlashError === 'function') {
+        flowFlashError('Aufbau-Leistung aktuell nicht verfügbar. Bitte ruf uns an.');
+      }
+      return;
+    }
   } else {
     BookingState.set('inspektionAddRepair', null);
   }
@@ -41,15 +78,84 @@ async function chooseServiceType(type) {
   if (typeof flowAutoAdvance === 'function') flowAutoAdvance();
 }
 
+/**
+ * Sucht im Catalog die Aufbau-Leistung. Match-Strategie (in dieser Reihenfolge):
+ *   1. eTermin-ID 599434 (eindeutiger Hartcode, falls Leistung umbenannt wird)
+ *   2. Bereich mit id='aufbau' oder Name startet mit „Aufbau"
+ *   3. Beliebige Leistung deren Name mit „Aufbau" beginnt
+ * Liefert die erste passende Leistung oder null.
+ */
+const AUFBAU_ETERMIN_ID = 599434;
+
+function findAufbauLeistung(catalog) {
+  if (!catalog?.bereiche) return null;
+
+  // 1. eTermin-ID Match (am robustesten)
+  for (const b of catalog.bereiche) {
+    const m = b.leistungen?.find(l => Number(l.eterminId) === AUFBAU_ETERMIN_ID);
+    if (m) return m;
+  }
+
+  // 2. Eigene Aufbau-Kategorie
+  const bereich = catalog.bereiche.find(b =>
+    b.id === 'aufbau' || /^aufbau/i.test(b.name || '')
+  );
+  if (bereich?.leistungen?.[0]) return bereich.leistungen[0];
+
+  // 3. Leistungs-Name beginnt mit „Aufbau"
+  for (const b of catalog.bereiche) {
+    const m = b.leistungen?.find(l => /^aufbau/i.test(l.name || ''));
+    if (m) return m;
+  }
+
+  return null;
+}
+
+// ─── Aufbau-Modal: Werkstatt-only-Hinweis ─────────────────────────────────
+function openAufbauModal() {
+  document.getElementById('aufbau-location-modal')?.classList.remove('hidden');
+}
+function closeAufbauModal() {
+  document.getElementById('aufbau-location-modal')?.classList.add('hidden');
+}
+window.openAufbauModal = openAufbauModal;
+window.closeAufbauModal = closeAufbauModal;
+
+async function confirmAufbauSwitchToWerkstatt() {
+  // Standort + alle adress-bezogenen Daten zurücksetzen
+  BookingState.set('locationType', 'werkstatt');
+  BookingState.set('address', null);
+  BookingState.set('addressFields', null);
+  BookingState.set('addressNotes', '');
+  BookingState.set('geoResult', null);
+  closeAufbauModal();
+  // Jetzt regulär „aufbau" wählen — dieser Aufruf läuft jetzt durch (locationType=werkstatt)
+  await chooseServiceType('aufbau');
+}
+window.confirmAufbauSwitchToWerkstatt = confirmAufbauSwitchToWerkstatt;
+
 function chooseInspektionAdditional(yes) {
   BookingState.set('inspektionAddRepair', yes);
   if (!yes) {
-    // Reset repair state when user says "no"
+    // Reset repair state when user toggles back to "no"
     BookingState.set('knowWhat', null);
     BookingState.set('needMore', null);
   }
-  if (typeof flowAutoAdvance === 'function') flowAutoAdvance();
+  // Visuelles Feedback: Button als "selected" markieren / wieder freigeben
+  const btn = document.getElementById('btn-inspektion-add-yes');
+  if (btn) btn.classList.toggle('selected', !!yes);
 }
+
+/**
+ * "Ja, zusätzlich reparieren": State setzen + sofort zum Reparatur-Catalog
+ * springen. Der "Weiter"-Button im Footer ist für den Nein-Pfad
+ * (Default = nur Inspektion).
+ */
+function chooseInspektionAdditionalAndAdvance() {
+  chooseInspektionAdditional(true);
+  if (typeof flowNext === 'function') flowNext();
+}
+window.chooseInspektionAdditionalAndAdvance = chooseInspektionAdditionalAndAdvance;
 
 function chooseKnowWhat(yes) {
   BookingState.set('knowWhat', yes);

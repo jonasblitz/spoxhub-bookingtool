@@ -39,7 +39,7 @@ const BookingState = (() => {
     },
     problemDescription: '',
     uploadedFiles: [],
-    bikePhoto: null,
+    addressNotes: '',
     selectedSlot: null,
     pricing: null,
     bookingResult: null
