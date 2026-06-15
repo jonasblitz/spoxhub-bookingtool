@@ -389,4 +389,71 @@ router.get('/slots', async (req, res) => {
   }
 });
 
+// ─── GET /customers — Bestandskunden aus eTermin abfragen ─────────────────────
+
+/**
+ * eTermin-Kontakt → normalisiertes Kunden-Objekt (Stammdaten + letztes Fahrrad).
+ * Die Additional-Felder folgen der Belegung aus etermin.createAppointment:
+ *   Additional1=Hersteller, 2=Modell, 3=Rahmennummer,
+ *   4=Leasinggeber, 5=Leasing-Vertragsnr, 16=Versicherung, 17=Versicherungs-Vertragsnr
+ */
+function mapContact(c) {
+  const v = x => (x === undefined || x === null || x === '') ? undefined : x;
+  return {
+    customer: {
+      anrede:   v(c.Salutation) || v(c.Title),
+      vorname:  v(c.FirstName),
+      name:     v(c.LastName),
+      email:    v(c.Email),
+      mobil:    v(c.Phone),
+      strasse:  v(c.Street),
+      plz:      v(c.ZIP),
+      ort:      v(c.City),
+      company:  v(c.Company),
+      birthday: v(c.Birthday)
+    },
+    bike: {
+      marke:          v(c.Additional1),
+      modell:         v(c.Additional2),
+      rahmennummer:   v(c.Additional3),
+      leasing:        v(c.Additional4),
+      leasingNr:      v(c.Additional5),
+      versicherung:   v(c.Additional16),
+      versicherungNr: v(c.Additional17)
+    },
+    etermin: {
+      cid:                 v(c.cid),
+      externalId:          v(c.ExternalID),
+      customerNumber:      v(c.CustomerNumber),
+      creationDate:        v(c.CreationDate),
+      lastAppointmentDate: v(c.LastAppointmentDate),
+      newsletter:          !!c.Newsletter
+    }
+  };
+}
+
+router.get('/customers', async (req, res) => {
+  const { email, name } = req.query;
+  if (!email && !name) {
+    return res.status(400).json({ error: 'Parameter email oder name erforderlich.' });
+  }
+  if (!process.env.ETERMIN_PUBLIC_KEY || !process.env.ETERMIN_PRIVATE_KEY) {
+    return res.status(503).json({ error: 'eTermin ist serverseitig nicht konfiguriert.' });
+  }
+  try {
+    // E-Mail: exakter Einzeltreffer (serverseitiger Filter)
+    if (email) {
+      const c = await etermin.findContactByEmail(email);
+      if (!c) return res.status(404).json({ found: false, error: 'Kein Kontakt mit dieser E-Mail gefunden.' });
+      return res.json({ found: true, match: mapContact(c) });
+    }
+    // Name: Teilsuche (gecachte Vollliste), 0..n Treffer
+    const list = await etermin.searchContactsByName(name);
+    return res.json({ found: list.length > 0, count: list.length, results: list.map(mapContact) });
+  } catch (err) {
+    console.error('[api-v1] customers error:', err.message);
+    return res.status(502).json({ error: 'Kundendaten konnten nicht abgefragt werden.', detail: err.message });
+  }
+});
+
 module.exports = router;

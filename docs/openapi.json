@@ -102,6 +102,46 @@
         }
       }
     },
+    "/customers": {
+      "get": {
+        "tags": ["Stammdaten"],
+        "summary": "Bestandskunde aus eTermin abfragen",
+        "description": "Sucht einen bestehenden Kunden in der eTermin-Kontaktdatenbank, damit Dritt-Software beim Anlegen automatisch Stammdaten + zuletzt bekanntes Fahrrad vorbefüllen kann. Genau einer der Parameter `email` oder `name` ist erforderlich.\n\n- `email`: exakter Einzeltreffer (serverseitig gefiltert) → `match`.\n- `name`: Teilsuche über Vor-/Nachname (gecachte Vollliste) → `results` (0..n).",
+        "parameters": [
+          { "name": "email", "in": "query", "schema": { "type": "string", "format": "email" }, "description": "Exakte E-Mail-Suche (Einzeltreffer)." },
+          { "name": "name", "in": "query", "schema": { "type": "string" }, "description": "Namens-Teilsuche (Vor-/Nachname)." }
+        ],
+        "responses": {
+          "200": {
+            "description": "Treffer (Einzel bei email, Liste bei name)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/CustomerLookupMatch" },
+                    { "$ref": "#/components/schemas/CustomerLookupList" }
+                  ]
+                },
+                "examples": {
+                  "email": { "summary": "email → match", "value": { "found": true, "match": { "customer": { "anrede": "Herr", "vorname": "Max", "name": "Mustermann", "email": "max@example.com", "mobil": "+4915112345678", "strasse": "Musterweg 1", "plz": "20359", "ort": "Hamburg" }, "bike": { "marke": "Cube", "modell": "Reaction", "rahmennummer": "WBK123" }, "etermin": { "cid": 41931676, "customerNumber": "K-1024", "lastAppointmentDate": "2026-03-10" } } } },
+                  "name": { "summary": "name → results", "value": { "found": true, "count": 1, "results": [ { "customer": { "vorname": "Max", "name": "Mustermann", "email": "max@example.com" }, "bike": {}, "etermin": { "cid": 41931676 } } ] } }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "Kein Kontakt gefunden (nur bei email)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "502": {
+            "description": "eTermin-Abfrage fehlgeschlagen",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
     "/calendars": {
       "get": {
         "tags": ["Stammdaten"],
@@ -368,6 +408,68 @@
           "name": { "type": "string" },
           "slotMinutes": { "type": "integer", "nullable": true },
           "enabled": { "type": "boolean", "nullable": true }
+        }
+      },
+      "CustomerRecord": {
+        "type": "object",
+        "description": "Normalisierter eTermin-Kontakt: Stammdaten + zuletzt bekanntes Fahrrad + eTermin-Meta.",
+        "properties": {
+          "customer": {
+            "type": "object",
+            "properties": {
+              "anrede": { "type": "string" },
+              "vorname": { "type": "string" },
+              "name": { "type": "string" },
+              "email": { "type": "string" },
+              "mobil": { "type": "string" },
+              "strasse": { "type": "string" },
+              "plz": { "type": "string" },
+              "ort": { "type": "string" },
+              "company": { "type": "string" },
+              "birthday": { "type": "string" }
+            }
+          },
+          "bike": {
+            "type": "object",
+            "description": "Aus den eTermin-Additional-Feldern (zuletzt gebuchtes Fahrrad).",
+            "properties": {
+              "marke": { "type": "string" },
+              "modell": { "type": "string" },
+              "rahmennummer": { "type": "string" },
+              "leasing": { "type": "string" },
+              "leasingNr": { "type": "string" },
+              "versicherung": { "type": "string" },
+              "versicherungNr": { "type": "string" }
+            }
+          },
+          "etermin": {
+            "type": "object",
+            "properties": {
+              "cid": { "type": "integer" },
+              "externalId": { "type": "string", "nullable": true },
+              "customerNumber": { "type": "string", "nullable": true },
+              "creationDate": { "type": "string", "nullable": true },
+              "lastAppointmentDate": { "type": "string", "nullable": true },
+              "newsletter": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "CustomerLookupMatch": {
+        "type": "object",
+        "description": "Antwort bei Suche per email (Einzeltreffer).",
+        "properties": {
+          "found": { "type": "boolean" },
+          "match": { "$ref": "#/components/schemas/CustomerRecord" }
+        }
+      },
+      "CustomerLookupList": {
+        "type": "object",
+        "description": "Antwort bei Suche per name (0..n Treffer).",
+        "properties": {
+          "found": { "type": "boolean" },
+          "count": { "type": "integer" },
+          "results": { "type": "array", "items": { "$ref": "#/components/schemas/CustomerRecord" } }
         }
       },
       "AvailabilityDay": {
