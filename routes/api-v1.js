@@ -266,7 +266,11 @@ router.post('/bookings', async (req, res) => {
   try {
     const result = await createBookingFromState(built.state, {
       publicBase: publicBaseFromReq(req),
-      calendarId: payload.calendarId ? Number(payload.calendarId) : null
+      calendarId: payload.calendarId ? Number(payload.calendarId) : null,
+      // Externe API bucht standardmäßig OHNE Kollisionsprüfung (Overbooking auf
+      // belegte Slots erlaubt). Mit "allowOverbooking": false kann die Dritt-
+      // Software die eTermin-Prüfung pro Buchung wieder aktivieren.
+      allowOverbooking: payload.allowOverbooking !== false
     });
 
     return res.status(201).json({

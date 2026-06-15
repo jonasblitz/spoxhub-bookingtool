@@ -259,6 +259,11 @@
             "items": { "type": "string", "format": "uri" },
             "description": "Öffentliche URLs zu Fotos/Videos des Problems."
           },
+          "allowOverbooking": {
+            "type": "boolean",
+            "default": true,
+            "description": "Standard true: Termine werden auch auf bereits belegten Slots angelegt (eTermin-Kollisions-/Kapazitätsprüfung deaktiviert, capused=0). Auf false setzen, um eTermins Prüfung zu aktivieren — dann scheitert eine Buchung auf einem belegten Slot mit 409/502."
+          },
           "sessionId": { "type": "string", "nullable": true }
         }
       },
