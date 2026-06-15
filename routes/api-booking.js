@@ -4,10 +4,18 @@ const etermin = require('../lib/etermin');
 const analytics = require('../lib/analytics');
 const paypal = require('../lib/paypal');
 const voucher = require('./api-voucher');
-const { getActiveWorkshopCalendars, loadCalendars } = require('../lib/calendars');
 const autoPause = require('../lib/auto-pause');
 const config = require('../lib/config');
 const reservations = require('../lib/reservations');
+const bookingCore = require('../lib/booking-core');
+const {
+  pickLeastBusyWorkshopCalendar,
+  pickLeastBusyFromSet,
+  getDefaultCalendarId,
+  persistBookingToAirtable,
+  buildEterminNotes,
+  buildAppointmentLocation
+} = bookingCore;
 
 /**
  * eTermin booking failed *after* PayPal capture: refund the deposit and log
@@ -53,125 +61,12 @@ async function handleBookingFailureAfterPayment(state, errorMessage) {
   return refund;
 }
 
-/**
- * Pick the workshop calendar with the lowest appointment count for a given date.
- * Tie-broken by Priorität (asc). Kept for backward-compat.
- */
-async function pickLeastBusyWorkshopCalendar(date) {
-  const calendars = await getActiveWorkshopCalendars();
-  if (calendars.length === 0) return null;
-  return pickLeastBusyFromSet(date, calendars.map(c => c.id));
-}
-
-/**
- * Pick the least-busy calendar from a given set of IDs for a date.
- *
- * Sort order:
- *   1. Termin-Count ascending (= least-busy first)
- *   2. travelTime ascending (only for Mobil — caller passes via opts.travelTimes)
- *   3. Priorität ascending (Stammdaten)
- *
- * @param {string} date         "YYYY-MM-DD"
- * @param {number[]} calIds     Candidate calendar IDs (must be active)
- * @param {object} [opts]
- * @param {Object<number, number>} [opts.travelTimes]  Map calId → travelTimeMinutes (Mobil)
- */
-async function pickLeastBusyFromSet(date, calIds, opts = {}) {
-  if (!Array.isArray(calIds) || calIds.length === 0) return null;
-  if (calIds.length === 1) return Number(calIds[0]);
-
-  const all = await loadCalendars();
-  const byId = new Map(all.map(c => [c.id, c]));
-  const travelTimes = opts.travelTimes || {};
-
-  const counts = await Promise.all(calIds.map(async id => {
-    const cal = byId.get(Number(id));
-    try {
-      const apps = await etermin.getAppointments(id, date, date);
-      return {
-        id: Number(id),
-        count: Array.isArray(apps) ? apps.length : 0,
-        travel: Number.isFinite(travelTimes[id]) ? travelTimes[id] : Number.MAX_SAFE_INTEGER,
-        prio: cal?.prio ?? 99
-      };
-    } catch (err) {
-      console.warn(`[booking] count error for cal ${id}:`, err.message);
-      return {
-        id: Number(id),
-        count: Number.MAX_SAFE_INTEGER,
-        travel: Number.MAX_SAFE_INTEGER,
-        prio: cal?.prio ?? 99
-      };
-    }
-  }));
-
-  counts.sort((a, b) =>
-    (a.count - b.count) ||
-    (a.travel - b.travel) ||
-    (a.prio - b.prio)
-  );
-
-  console.log('[booking] load:',
-    counts.map(c => `${c.id}=${c.count}` + (c.travel < Number.MAX_SAFE_INTEGER ? `/${c.travel}min` : '')).join(', '),
-    '→ chose', counts[0].id);
-  return counts[0].id;
-}
-
-// Build public URL for files in /uploads/ — used by Airtable to fetch attachments.
-// Requires PUBLIC_BASE_URL env (e.g. "https://spoxhub.io/booking") for production.
-function filenameToPublicUrl(filename, req) {
-  if (!filename) return null;
-  const base = process.env.PUBLIC_BASE_URL
-    || `${req.protocol}://${req.get('host')}${(req.baseUrl || '').replace(/\/api.*$/, '')}`;
-  return `${base.replace(/\/$/, '')}/uploads/${filename}`;
-}
-
-// Write booking + customer + bike + session completion to Airtable (fail-soft).
-async function persistBookingToAirtable(state, eterminBookingId, req) {
-  if (!analytics.isConfigured()) return;
-
-  try {
-    const customer = state.customer || {};
-    const bike = state.bike || {};
-
-    // 1. Customer (upsert by Email)
-    const customerRecord = await analytics.findOrCreateCustomer(customer.email, customer);
-
-    // 2. Bike (always new)
-    const bikeRecord = await analytics.createBike(
-      customerRecord?.id,
-      bike,
-      state.vehicleType
-    );
-
-    // 3. Problem media URLs
-    const problemMediaUrls = (state.uploadedFiles || [])
-      .map(f => filenameToPublicUrl(f.filename, req))
-      .filter(Boolean);
-
-    // 5. Booking
-    const bookingRecord = await analytics.createBooking({
-      customerRecordId: customerRecord?.id,
-      bikeRecordId: bikeRecord?.id,
-      state,
-      eterminBookingId,
-      problemMediaUrls
-    });
-
-    // 6. Complete session
-    if (state.sessionId) {
-      await analytics.completeSession(state.sessionId, bookingRecord?.id, customerRecord?.id);
-    }
-
-    console.log('[analytics] booking persisted:', {
-      customerId: customerRecord?.id,
-      bikeId: bikeRecord?.id,
-      bookingId: bookingRecord?.id
-    });
-  } catch (err) {
-    // Airtable failure shouldn't block successful eTermin booking
-    console.error('[analytics] persist error:', err.message);
-  }
+// Build the public base URL for /uploads/ links (Airtable attachments, eTermin
+// notes). Prefers PUBLIC_BASE_URL env; falls back to the request host.
+function publicBaseFromReq(req) {
+  return (process.env.PUBLIC_BASE_URL
+    || `${req.protocol}://${req.get('host')}${(req.baseUrl || '').replace(/\/api.*$/, '')}`
+  ).replace(/\/$/, '');
 }
 
 router.post('/confirm', async (req, res) => {
@@ -225,96 +120,8 @@ router.post('/confirm', async (req, res) => {
   }
 
   // ─── Build structured notes ──────────────────────────────────────────────
-  const vehicleLabel  = state.vehicleType === 'ebike' ? 'E-Bike' : 'Cargobike';
-  const locationLabels = { mobil: 'Mobil', anderer_ort: 'Anderer Ort', werkstatt: 'Werkstatt' };
-  const fmtEur = n => (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-  const PUBLIC_BASE = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}${(req.baseUrl || '').replace(/\/api.*$/, '')}`).replace(/\/$/, '');
-  const fileUrl = filename => filename ? `${PUBLIC_BASE}/uploads/${filename}` : null;
-
-  const sections = [];
-
-  // 0. TESTBUCHUNG banner — only when paid via voucher (no real money flow)
-  if (state.payment?.method === 'voucher') {
-    sections.push(
-      '🚧🚧🚧  T E S T B U C H U N G  🚧🚧🚧\n' +
-      '(Gutscheincode statt Anzahlung — kein Geld geflossen)'
-    );
-  }
-
-  // 1. Leistungen
-  const lineItems = (state.pricing?.lineItems || state.selectedServices || []).map(item => {
-    const qty = item.quantity || 1;
-    const label = qty > 1 ? `${qty}× ${item.name}` : item.name;
-    const inspBadge = item.includedInInspektion ? '  (inkl. Inspektion)' : '';
-    return `- ${label} (${fmtEur(item.price)})${inspBadge}`;
-  });
-  if (state.pricing?.inspektionOverage?.cost > 0) {
-    const o = state.pricing.inspektionOverage;
-    lineItems.push(`+ Zusätzliche Arbeitszeit über Inspektions-Bonus: ${o.minutes} Min × ${o.rate} €/Min = ${fmtEur(o.cost)}`);
-  }
-  sections.push('══ LEISTUNGEN ══\n' + lineItems.join('\n'));
-
-  // 2. Problembeschreibung (only if filled)
-  if (state.problemDescription) {
-    sections.push('══ PROBLEMBESCHREIBUNG ══\n' + state.problemDescription.trim());
-  }
-
-  // 3. Fahrzeug
-  const vehicleLines = [
-    `${vehicleLabel} — ${b.marke}${b.modell ? ' ' + b.modell : ''}`,
-    b.rahmennummer ? `Rahmennummer: ${b.rahmennummer}` : null,
-    b.leasing      ? `Leasing:       ${b.leasing}${b.leasingNr ? ' (Vertrags-Nr ' + b.leasingNr + ')' : ''}` : null,
-    b.versicherung ? `Versicherung:  ${b.versicherung}${b.versicherungNr ? ' (Vertrags-Nr ' + b.versicherungNr + ')' : ''}` : null
-  ].filter(Boolean);
-  sections.push('══ FAHRZEUG ══\n' + vehicleLines.join('\n'));
-
-  // 4. Fotos / Videos (only if any)
-  const mediaLines = [];
-  (state.uploadedFiles || []).forEach((f, i) => {
-    const u = fileUrl(f.filename);
-    if (u) mediaLines.push(`Problem ${i + 1}: ${u}`);
-  });
-  if (mediaLines.length > 0) {
-    sections.push('══ FOTOS / VIDEOS ══\n' + mediaLines.join('\n'));
-  }
-
-  // 5. Kunde
-  const customerSalutation = c.anrede ? c.anrede + ' ' : '';
-  const customerLines = [
-    `${customerSalutation}${c.vorname} ${c.name}`,
-    `${c.email} · ${c.mobil}`,
-    `${c.strasse}, ${c.plz} ${c.ort}`
-  ];
-  sections.push('══ KUNDE ══\n' + customerLines.join('\n'));
-
-  // 6. Rechnung (only if abweichend)
-  if (c.rechnungStrasse || c.rechnungFirma) {
-    const billingLines = [
-      'Abweichend:',
-      c.rechnungFirma || null,
-      c.rechnungStrasse || null,
-      `${c.rechnungPlz || ''} ${c.rechnungOrt || ''}`.trim() || null
-    ].filter(Boolean);
-    sections.push('══ RECHNUNG ══\n' + billingLines.join('\n'));
-  }
-
-  // 7. Standort (Service-Location summary)
-  const locationLines = [
-    `${locationLabels[state.locationType] || state.locationType}`,
-    state.address ? state.address : null,
-    state.addressNotes ? `Hinweise zur Zufahrt: ${state.addressNotes}` : null
-  ].filter(Boolean);
-  sections.push('══ SERVICE-ORT ══\n' + locationLines.join('\n'));
-
-  // 8. Preis & Zahlung
-  const priceLines = [];
-  if (state.pricing?.total != null) priceLines.push(`Geschätzter Gesamtpreis: ${fmtEur(state.pricing.total)}`);
-  if (state.pricing?.travelFee > 0) priceLines.push(`   Anfahrtskosten:       ${fmtEur(state.pricing.travelFee)}`);
-  if (state.payment?.amount)        priceLines.push(`Anzahlung (PayPal):       ${fmtEur(state.payment.amount)}`);
-  if (state.payment?.orderId)       priceLines.push(`PayPal Order-ID:          ${state.payment.orderId}`);
-  if (priceLines.length > 0) sections.push('══ PREIS & ZAHLUNG ══\n' + priceLines.join('\n'));
-
-  const notes = sections.join('\n\n');
+  const PUBLIC_BASE = publicBaseFromReq(req);
+  const notes = buildEterminNotes(state, { publicBase: PUBLIC_BASE });
 
   // Format start/end for eTermin: yyyy-mm-dd HH:MM
   const slot = state.selectedSlot;
@@ -333,18 +140,7 @@ router.post('/confirm', async (req, res) => {
 
       // Service location: for mobile service, the customer address; otherwise empty
       // (eTermin keeps the calendar's default location for werkstatt).
-      let appointmentLocation = '';
-      if (state.locationType !== 'werkstatt') {
-        const a = state.addressFields || {};
-        const street = a.street || c.strasse || '';
-        const plz    = a.plz    || c.plz    || '';
-        const city   = a.city   || c.ort    || '';
-        appointmentLocation = `${street}, ${plz} ${city}`
-          .replace(/^,\s*/, '')     // trim leading comma
-          .replace(/\s+,\s*$/, '')  // trim trailing comma
-          .replace(/\s{2,}/g, ' ')  // collapse double spaces
-          .trim();
-      }
+      const appointmentLocation = buildAppointmentLocation(state);
 
       // Kalender-Auflösung:
       //   - Reservation hält schon den Slot → der calendarId der Memory-Reservation
@@ -445,7 +241,7 @@ router.post('/confirm', async (req, res) => {
       const eterminBookingId = result.ID || result.IID;
 
       // Persist to Airtable (fail-soft; doesn't block response)
-      persistBookingToAirtable(state, eterminBookingId, req).catch(e => console.error('[analytics] async error:', e.message));
+      persistBookingToAirtable(state, eterminBookingId, { publicBase: PUBLIC_BASE }).catch(e => console.error('[analytics] async error:', e.message));
 
       // Sync auto-pause for this calendar+date (fail-soft)
       autoPause.syncAfterBooking(resolvedCalendarId, slot.date)
@@ -492,7 +288,7 @@ router.post('/confirm', async (req, res) => {
   });
 
   // Persist to Airtable even in mock mode (useful for testing)
-  persistBookingToAirtable(state, null, req).catch(e => console.error('[analytics] async error:', e.message));
+  persistBookingToAirtable(state, null, { publicBase: publicBaseFromReq(req) }).catch(e => console.error('[analytics] async error:', e.message));
 
   res.json({
     success: true,
@@ -583,11 +379,5 @@ router.post('/release-slot', (req, res) => {
   const released = reservations.release(reservationId);
   res.json({ success: true, released });
 });
-
-async function getDefaultCalendarId() {
-  const calendars = await etermin.listCalendars();
-  const enabled = calendars.filter(c => c.Enabled !== false);
-  return enabled[0]?.CalendarID;
-}
 
 module.exports = router;

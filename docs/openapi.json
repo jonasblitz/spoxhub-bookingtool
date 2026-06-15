@@ -1,0 +1,400 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Spoxhub Booking API",
+    "version": "1.0.0",
+    "description": "Externe Server-zu-Server-API des Fahrrad-Service-Buchungstools. Erlaubt das Einstellen von Buchungen aus Dritt-Software — sowohl Katalog-Leistungen (per Airtable-Record-ID) als auch frei definierte Positionen. Authentifizierung über Bearer-Token (`EXTERNAL_API_TOKEN`).\n\nAnders als der Web-Flow verlangt diese API **keine Anzahlung** und keine Slot-Reservierung; Zahlungsangaben sind optional und werden nur protokolliert."
+  },
+  "servers": [
+    { "url": "/api/v1", "description": "Relativ zum Host (lokal: http://localhost:3001/api/v1)" },
+    { "url": "https://spoxhub.io/booking/api/v1", "description": "Produktion" }
+  ],
+  "security": [{ "BearerAuth": [] }],
+  "tags": [
+    { "name": "Buchungen", "description": "Buchungen anlegen" },
+    { "name": "Stammdaten", "description": "Katalog & Kalender entdecken" },
+    { "name": "Verfügbarkeit", "description": "Freie Tage & Slots abfragen" }
+  ],
+  "paths": {
+    "/bookings": {
+      "post": {
+        "tags": ["Buchungen"],
+        "summary": "Buchung anlegen",
+        "description": "Legt einen Kundentermin in eTermin an und persistiert ihn (fail-soft) nach Airtable. Deckt alle Felder ab, die der Web-Wizard erfragt.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BookingRequest" },
+              "examples": {
+                "katalog": {
+                  "summary": "Katalog-Leistung, Werkstatt",
+                  "value": {
+                    "vehicleType": "ebike",
+                    "serviceType": "reparatur",
+                    "locationType": "werkstatt",
+                    "services": [{ "catalogId": "recXXXXXXXXXXXXXX", "quantity": 1 }],
+                    "problemDescription": "Bremse hinten schleift.",
+                    "bike": { "marke": "Cube", "modell": "Reaction", "rahmennummer": "WBK123456" },
+                    "customer": {
+                      "anrede": "Herr", "vorname": "Max", "name": "Mustermann",
+                      "email": "max@example.com", "mobil": "+4915112345678",
+                      "strasse": "Musterweg 1", "plz": "20359", "ort": "Hamburg"
+                    },
+                    "slot": { "date": "2026-06-20", "start": "10:00", "end": "11:00" },
+                    "calendarId": 216919,
+                    "consent": { "agb": true, "privacy": true }
+                  }
+                },
+                "freieLeistung": {
+                  "summary": "Freie Position (nicht im Webkatalog), mobil",
+                  "value": {
+                    "vehicleType": "cargobike",
+                    "locationType": "mobil",
+                    "services": [
+                      { "name": "Spezialumbau Lastenrad", "price": 149.0, "durationMinutes": 90, "eterminId": 12345 }
+                    ],
+                    "customer": {
+                      "vorname": "Erika", "name": "Beispiel",
+                      "email": "erika@example.com", "mobil": "+4915198765432",
+                      "strasse": "Beispielstr. 5", "plz": "22765", "ort": "Hamburg"
+                    },
+                    "serviceLocation": { "address": "Beispielstr. 5, 22765 Hamburg", "notes": "Hinterhof, Tor links" },
+                    "slot": { "date": "2026-06-21", "start": "14:00", "end": "15:30" },
+                    "calendarId": 211614,
+                    "pricing": { "travelFee": 20.0 },
+                    "consent": { "agb": true, "privacy": true }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Buchung angelegt",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BookingResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "502": {
+            "description": "Buchung in eTermin fehlgeschlagen",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    },
+    "/catalog": {
+      "get": {
+        "tags": ["Stammdaten"],
+        "summary": "Buchbare Katalog-Leistungen",
+        "description": "Liefert die im Buchungstool hinterlegten Leistungen, gefiltert nach Fahrzeugtyp. Die `id` jeder Leistung ist die `catalogId` für `POST /bookings`.",
+        "parameters": [
+          { "name": "vehicleType", "in": "query", "schema": { "type": "string", "enum": ["ebike", "cargobike"], "default": "ebike" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Katalog",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Catalog" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/calendars": {
+      "get": {
+        "tags": ["Stammdaten"],
+        "summary": "Kalender auflisten",
+        "responses": {
+          "200": {
+            "description": "Kalenderliste",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Calendar" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/availability": {
+      "get": {
+        "tags": ["Verfügbarkeit"],
+        "summary": "Verfügbare Tage eines Monats",
+        "parameters": [
+          { "name": "year", "in": "query", "required": true, "schema": { "type": "integer" }, "example": 2026 },
+          { "name": "month", "in": "query", "required": true, "schema": { "type": "integer" }, "example": 6 },
+          { "name": "duration", "in": "query", "schema": { "type": "integer", "default": 60 }, "description": "Termindauer in Minuten" },
+          { "name": "calendarId", "in": "query", "schema": { "type": "integer" }, "description": "Ohne Angabe: alle aktiven Werkstatt-Kalender" },
+          { "name": "serviceIds", "in": "query", "schema": { "type": "string" }, "description": "Komma-getrennte eTermin-Service-IDs" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tage",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AvailabilityDay" } }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/slots": {
+      "get": {
+        "tags": ["Verfügbarkeit"],
+        "summary": "Freie Slots eines Tages",
+        "parameters": [
+          { "name": "date", "in": "query", "required": true, "schema": { "type": "string", "format": "date" }, "example": "2026-06-20" },
+          { "name": "duration", "in": "query", "schema": { "type": "integer", "default": 60 } },
+          { "name": "calendarId", "in": "query", "schema": { "type": "integer" }, "description": "Ohne Angabe: alle aktiven Werkstatt-Kalender" },
+          { "name": "serviceIds", "in": "query", "schema": { "type": "string" }, "description": "Komma-getrennte eTermin-Service-IDs" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Slots",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Slot" } }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Token aus der Env-Variable EXTERNAL_API_TOKEN. Header: `Authorization: Bearer <token>`."
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Ungültige Anfrage / Validierungsfehler",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Unauthorized": {
+        "description": "Token fehlt oder ist ungültig",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      },
+      "Unavailable": {
+        "description": "Serverseitig nicht konfiguriert (Token oder eTermin fehlt)",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      }
+    },
+    "schemas": {
+      "BookingRequest": {
+        "type": "object",
+        "required": ["locationType", "services", "customer", "slot"],
+        "properties": {
+          "vehicleType": { "type": "string", "enum": ["ebike", "cargobike"], "default": "ebike" },
+          "serviceType": { "type": "string", "enum": ["inspektion", "reparatur", "aufbau"], "description": "Optional. 'aufbau' nur mit locationType 'werkstatt'." },
+          "locationType": { "type": "string", "enum": ["werkstatt", "mobil", "anderer_ort"] },
+          "services": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Mischung aus Katalog-Positionen (catalogId) und freien Positionen (name).",
+            "items": { "$ref": "#/components/schemas/ServiceItem" }
+          },
+          "problemDescription": { "type": "string" },
+          "bike": { "$ref": "#/components/schemas/Bike" },
+          "customer": { "$ref": "#/components/schemas/Customer" },
+          "serviceLocation": { "$ref": "#/components/schemas/ServiceLocation" },
+          "slot": { "$ref": "#/components/schemas/SlotInput" },
+          "calendarId": { "type": "integer", "description": "Optionaler expliziter eTermin-Kalender. Ohne Angabe wird der am wenigsten ausgelastete passende Kalender gewählt." },
+          "consent": { "$ref": "#/components/schemas/Consent" },
+          "payment": { "$ref": "#/components/schemas/Payment" },
+          "pricing": { "$ref": "#/components/schemas/PricingInput" },
+          "problemMedia": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" },
+            "description": "Öffentliche URLs zu Fotos/Videos des Problems."
+          },
+          "sessionId": { "type": "string", "nullable": true }
+        }
+      },
+      "ServiceItem": {
+        "type": "object",
+        "description": "Entweder Katalog-Position (catalogId gesetzt) ODER freie Position (name gesetzt).",
+        "properties": {
+          "catalogId": { "type": "string", "description": "Airtable-Record-ID der Katalog-Leistung (aus GET /catalog)." },
+          "quantity": { "type": "integer", "default": 1, "minimum": 1 },
+          "name": { "type": "string", "description": "Name der freien Position (wenn keine catalogId)." },
+          "price": { "type": "number", "description": "Arbeitspreis pro Einheit (freie Position)." },
+          "materialPrice": { "type": "number", "default": 0, "description": "Materialkosten pro Einheit (freie Position)." },
+          "durationMinutes": { "type": "integer", "default": 30, "description": "Dauer pro Einheit (freie Position)." },
+          "eterminId": { "type": "integer", "nullable": true, "description": "Optionale eTermin-Service-ID für die Slot-/Dauer-Logik." }
+        }
+      },
+      "Bike": {
+        "type": "object",
+        "properties": {
+          "marke": { "type": "string" },
+          "modell": { "type": "string" },
+          "farbe": { "type": "string" },
+          "rahmennummer": { "type": "string" },
+          "bidexKlasse": { "type": "integer", "nullable": true },
+          "leasing": { "type": "string", "description": "Leasing-Anbieter (leer = kein Leasing)." },
+          "leasingNr": { "type": "string" },
+          "versicherung": { "type": "string", "description": "Versicherer (leer = nicht versichert)." },
+          "versicherungNr": { "type": "string" }
+        }
+      },
+      "Customer": {
+        "type": "object",
+        "required": ["vorname", "name", "email", "mobil"],
+        "properties": {
+          "anrede": { "type": "string", "example": "Herr" },
+          "vorname": { "type": "string" },
+          "name": { "type": "string", "description": "Nachname." },
+          "email": { "type": "string", "format": "email" },
+          "mobil": { "type": "string" },
+          "strasse": { "type": "string", "description": "Straße + Hausnummer." },
+          "plz": { "type": "string" },
+          "ort": { "type": "string" },
+          "rechnungFirma": { "type": "string" },
+          "rechnungStrasse": { "type": "string" },
+          "rechnungPlz": { "type": "string" },
+          "rechnungOrt": { "type": "string" }
+        }
+      },
+      "ServiceLocation": {
+        "type": "object",
+        "description": "Ort der Leistung (bei mobil/anderer_ort). Bei werkstatt ignoriert.",
+        "properties": {
+          "address": { "type": "string", "description": "Anzeige-Adresse für die Zusammenfassung." },
+          "notes": { "type": "string", "description": "Hinweise zur Zufahrt." },
+          "street": { "type": "string" },
+          "plz": { "type": "string" },
+          "city": { "type": "string" }
+        }
+      },
+      "SlotInput": {
+        "type": "object",
+        "required": ["date", "start", "end"],
+        "properties": {
+          "date": { "type": "string", "format": "date", "example": "2026-06-20" },
+          "start": { "type": "string", "example": "10:00" },
+          "end": { "type": "string", "example": "11:00" }
+        }
+      },
+      "Consent": {
+        "type": "object",
+        "properties": {
+          "agb": { "type": "boolean", "default": false },
+          "privacy": { "type": "boolean", "default": false },
+          "newsletter": { "type": "boolean", "default": false },
+          "feedback": { "type": "boolean", "default": false }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "description": "Optional — wird nur erfasst, keine Zahlung wird ausgelöst.",
+        "properties": {
+          "method": { "type": "string", "example": "external" },
+          "amount": { "type": "number" },
+          "status": { "type": "string", "example": "completed" },
+          "orderId": { "type": "string" },
+          "captureId": { "type": "string" },
+          "code": { "type": "string", "description": "Gutscheincode (optional)." }
+        }
+      },
+      "PricingInput": {
+        "type": "object",
+        "description": "Optionale Preis-Overrides. Ohne Angabe wird aus den Katalog-/freien Positionen berechnet.",
+        "properties": {
+          "total": { "type": "number", "description": "Gesamtpreis-Override." },
+          "travelFee": { "type": "number", "description": "Anfahrtskosten-Override." },
+          "travelTimeMinutes": { "type": "number", "description": "Fahrzeit für automatische Anfahrtskosten-Berechnung." }
+        }
+      },
+      "BookingResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "bookingId": { "type": "string", "nullable": true, "description": "eTermin-Termin-ID." },
+          "bookingRef": { "type": "string", "nullable": true, "description": "Airtable-Buchungsreferenz (BK-…)." },
+          "airtableRecordId": { "type": "string", "nullable": true },
+          "calendarId": { "type": "integer" },
+          "status": { "type": "string", "example": "confirmed" }
+        }
+      },
+      "Catalog": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "string" },
+          "bereiche": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "leistungen": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "description": "= catalogId für POST /bookings." },
+                      "name": { "type": "string" },
+                      "description": { "type": "string" },
+                      "price": { "type": "number" },
+                      "priceWork": { "type": "number" },
+                      "priceMaterial": { "type": "number" },
+                      "duration": { "type": "integer" },
+                      "eterminId": { "type": "integer", "nullable": true },
+                      "maxQuantity": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Calendar": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "slotMinutes": { "type": "integer", "nullable": true },
+          "enabled": { "type": "boolean", "nullable": true }
+        }
+      },
+      "AvailabilityDay": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "available": { "type": "boolean" },
+          "slotCount": { "type": "integer" }
+        }
+      },
+      "Slot": {
+        "type": "object",
+        "properties": {
+          "start": { "type": "string", "example": "10:00" },
+          "end": { "type": "string", "example": "11:00" },
+          "label": { "type": "string", "nullable": true },
+          "eligibleCalendarIds": { "type": "array", "items": { "type": "integer" } }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    }
+  }
+}

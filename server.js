@@ -67,6 +67,9 @@ app.use('/api/analytics', corsMiddleware, pluginKeyCheck, require('./routes/api-
 app.use('/api/admin', require('./routes/api-admin'));
 // Portal: Server-to-Server-Endpoints (Bearer-Auth via PORTAL_API_TOKEN, kein CORS)
 app.use('/api/portal', require('./routes/api-portal'));
+// v1: Externe Buchungs-API (Bearer-Auth via EXTERNAL_API_TOKEN, kein CORS).
+// Swagger-Doku unter /api/v1/docs, Spec unter /api/v1/openapi.json.
+app.use('/api/v1', require('./routes/api-v1'));
 
 // Error handler
 app.use((err, req, res, next) => {
