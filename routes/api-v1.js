@@ -270,7 +270,10 @@ router.post('/bookings', async (req, res) => {
       // Externe API bucht standardmäßig OHNE Kollisionsprüfung (Overbooking auf
       // belegte Slots erlaubt). Mit "allowOverbooking": false kann die Dritt-
       // Software die eTermin-Prüfung pro Buchung wieder aktivieren.
-      allowOverbooking: payload.allowOverbooking !== false
+      allowOverbooking: payload.allowOverbooking !== false,
+      // Standard: Kunde erhält die eTermin-Terminbestätigung. Mit
+      // "notifyCustomer": false wird keine E-Mail an den Kunden verschickt.
+      notifyCustomer: payload.notifyCustomer !== false
     });
 
     return res.status(201).json({

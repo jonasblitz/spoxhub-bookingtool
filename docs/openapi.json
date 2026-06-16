@@ -264,6 +264,11 @@
             "default": true,
             "description": "Standard true: Termine werden auch auf bereits belegten Slots angelegt (eTermin-Kollisions-/Kapazitätsprüfung deaktiviert, capused=0). Auf false setzen, um eTermins Prüfung zu aktivieren — dann scheitert eine Buchung auf einem belegten Slot mit 409/502."
           },
+          "notifyCustomer": {
+            "type": "boolean",
+            "default": true,
+            "description": "Standard true: eTermin verschickt die Terminbestätigung per E-Mail an den Kunden. Auf false setzen, um den Kunden NICHT zu benachrichtigen (sendemail=0)."
+          },
           "sessionId": { "type": "string", "nullable": true }
         }
       },
