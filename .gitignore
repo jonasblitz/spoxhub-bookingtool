@@ -34,6 +34,10 @@ build/
 uploads/
 __staging__/
 
+# ─── Email-Agent ───────────────────────────────────────────────────────────
+email-agent/reports/
+email-agent/.state.json
+
 # ─── Logs ──────────────────────────────────────────────────────────────────
 *.log
 logs/

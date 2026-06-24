@@ -8,14 +8,20 @@
     "dev": "concurrently \"node --watch server.js\" \"npx tailwindcss -i ./src/input.css -o ./public/css/output.css --watch\"",
     "build:css": "npx tailwindcss -i ./src/input.css -o ./public/css/output.css --minify",
     "build:css:embed": "node scripts/build-embed-css.js",
-    "build": "npm run build:css && npm run build:css:embed"
+    "build": "npm run build:css && npm run build:css:embed",
+    "email-agent": "node scripts/email-agent.js",
+    "email-agent:dry": "node scripts/email-agent.js --dry-run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "ejs": "^3.1.10",
     "express": "^4.21.0",
-    "multer": "^2.1.1"
+    "imapflow": "^1.0.181",
+    "mailparser": "^3.7.1",
+    "multer": "^2.1.1",
+    "nodemailer": "^6.9.16"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
