@@ -66,7 +66,14 @@
     const API_BASE = (typeof window.SPOXHUB_API_BASE === 'string' && window.SPOXHUB_API_BASE)
       ? window.SPOXHUB_API_BASE.replace(/\/$/, '')
       : window.location.pathname.replace(/\/$/, '');
+
+    // Supabase Public-Werte (Anon-Key ist server-rendered, RLS schützt die Daten)
+    window.SUPABASE_URL      = '<%= supabaseUrl %>';
+    window.SUPABASE_ANON_KEY = '<%= supabaseAnonKey %>';
   </script>
+  <% if (supabaseUrl && supabaseAnonKey) { %>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <% } %>
   <script src="js/state.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/iframe-bridge.js"></script>

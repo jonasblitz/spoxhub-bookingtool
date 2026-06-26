@@ -1557,3 +1557,50 @@ body {
   line-height: 1.5;
 }
 .auth-modal__status strong { color: #e8ff00; }
+
+/* OAuth-Block */
+.auth-modal__divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0 1rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #d6b3db;
+}
+.auth-modal__divider::before,
+.auth-modal__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #7d3386; /* purple-700 */
+}
+.auth-modal__oauth {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.auth-modal__oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #7d3386;
+  border-radius: 999px;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.auth-modal__oauth-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: #e8ff00;
+}
+.auth-modal__oauth-btn:disabled { opacity: 0.5; cursor: default; }
+.auth-modal__oauth-btn svg { flex-shrink: 0; }
