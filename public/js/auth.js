@@ -110,6 +110,12 @@
       BookingState.set('bike', nextBike);
     }
 
+    // Falls Customer/Bike-Screens schon im DOM gerendert sind (= User ist
+    // schon auf Screen 11/14/17/18 als der Login durchläuft), die Inputs
+    // direkt nachschieben. Auf neu betretenen Screens passiert das über
+    // den OnEnter-Hook (flow.js).
+    try { window.prefillFormFromState?.(); } catch {}
+
     return {
       logged: true,
       name: data.customer?.firstName || data.contact?.email || null,

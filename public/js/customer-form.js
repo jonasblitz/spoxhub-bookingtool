@@ -104,6 +104,52 @@ function toggleSection(sectionId, btn) {
   btn?.classList.toggle('open', isHidden);
 }
 
+// ─── Generischer State → Form-Sync ────────────────────────────────────────
+// Iteriert über alle Inputs/Selects mit [data-field] und befüllt sie aus
+// dem BookingState — aber nur, wenn das Feld leer ist (damit User-Edits
+// nicht überschrieben werden). Aufrufer: OnEnter-Hooks der Screens 11/14/
+// 17/18 sowie die Auth-Pipeline nach erfolgreichem Login.
+//
+// Außerdem: wenn ein bike.leasing oder bike.versicherung gesetzt ist, wird
+// die zugehörige Checkbox aktiviert + die hidden Sub-Section eingeblendet.
+function prefillFormFromState(root) {
+  root = root || document;
+  if (typeof BookingState === 'undefined') return;
+
+  root.querySelectorAll('[data-field]').forEach(el => {
+    const field = el.dataset.field;
+    if (!field) return;
+    // Checkboxen + Radios werden separat über toggle-Logik gesteuert
+    if (el.type === 'checkbox' || el.type === 'radio') return;
+    if (el.value && String(el.value).trim() !== '') return; // schon gesetzt — nicht überschreiben
+
+    const val = BookingState.get(field);
+    if (val == null || val === '') return;
+    el.value = String(val);
+  });
+
+  // Leasing/Versicherung: Checkbox + hidden Section synchronisieren
+  const bike = BookingState.get('bike') || {};
+  const leasingChk = root.querySelector('#b-is-leasing');
+  if (leasingChk && !leasingChk.checked && (bike.leasing || bike.leasingNr)) {
+    leasingChk.checked = true;
+    if (typeof toggleBikeSection === 'function') toggleBikeSection('leasing', true);
+  }
+  const versChk = root.querySelector('#b-is-versichert');
+  if (versChk && !versChk.checked && (bike.versicherung || bike.versicherungNr)) {
+    versChk.checked = true;
+    if (typeof toggleBikeSection === 'function') toggleBikeSection('versicherung', true);
+  }
+
+  // BidexClass: aktive Karte markieren
+  const bidex = BookingState.get('bike.bidexKlasse') || BookingState.get('bidexClass');
+  if (bidex) {
+    root.querySelectorAll('[data-bidex]').forEach(card => {
+      card.classList.toggle('active', card.dataset.bidex === String(bidex));
+    });
+  }
+}
+
 // Pre-fill address from Step 1 when entering Step 4
 function prefillCustomerAddress() {
   const locationType = BookingState.get('locationType');

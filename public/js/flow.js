@@ -69,6 +69,7 @@ const FLOW_SCREENS = [
 
   // Phase 3 — Dein Rad (kombinierter Screen: Marke + Modell + Rahmennummer, alles optional)
   { id: 'bike-brand',
+    onEnter: () => window.prefillFormFromState?.(),
     validate: () => {
       const b = BookingState.get('bike') || {};
       // Marke ist optional. Wenn gesetzt, gilt aber die Blacklist.
@@ -80,11 +81,12 @@ const FLOW_SCREENS = [
   },
 
   { id: 'bike-leasing',
-    onEnter: () => window.onEnterBikeLeasing?.() },
+    onEnter: () => { window.onEnterBikeLeasing?.(); window.prefillFormFromState?.(); } },
 
 
   // Phase 4 — Deine Daten
   { id: 'customer-name-contact',
+    onEnter: () => window.prefillFormFromState?.(),
     validate: () => {
       const c = BookingState.get('customer') || {};
       if (!c.vorname) return 'Bitte gib deinen Vornamen ein.';
@@ -96,7 +98,7 @@ const FLOW_SCREENS = [
   },
 
   { id: 'customer-address',
-    onEnter: () => window.prefillCustomerAddress?.(),
+    onEnter: () => { window.prefillCustomerAddress?.(); window.prefillFormFromState?.(); },
     validate: () => {
       const c = BookingState.get('customer') || {};
       if (!c.strasse) return 'Bitte gib deine Straße ein.';
