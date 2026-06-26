@@ -23,6 +23,31 @@
   const TOKEN_KEY   = 'booking_jwt';
   const REFRESH_KEY = 'booking_refresh';
 
+  // ─── OAuth Provider Toggle ────────────────────────────────────────────────
+  // Aktivierte OAuth-Provider, in der Reihenfolge, in der sie im Login-
+  // Modal angezeigt werden. Apple wieder einschalten: 'apple' an die Liste
+  // anhängen. Voraussetzung: Provider ist auch im Supabase Dashboard
+  // konfiguriert (Authentication → Sign In / Up).
+  const OAUTH_PROVIDERS = ['google'];
+
+  const PROVIDER_META = {
+    google: {
+      label: 'Mit Google fortfahren',
+      svg: `<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.08-1.79 2.72v2.26h2.9c1.7-1.57 2.69-3.88 2.69-6.62z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.9-2.26c-.81.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.71H.96v2.34A9 9 0 0 0 9 18z"/>
+        <path fill="#FBBC05" d="M3.95 10.71A5.4 5.4 0 0 1 3.66 9c0-.59.1-1.17.29-1.71V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l2.99-2.34z"/>
+        <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58A8.99 8.99 0 0 0 9 0 9 9 0 0 0 .96 4.95l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/>
+      </svg>`
+    },
+    apple: {
+      label: 'Mit Apple fortfahren',
+      svg: `<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="currentColor">
+        <path d="M14.84 14.04c-.3.7-.66 1.34-1.08 1.94-.58.81-1.05 1.37-1.42 1.68-.56.51-1.17.78-1.81.8-.46 0-1.02-.13-1.66-.4-.65-.27-1.24-.4-1.78-.4-.57 0-1.18.13-1.83.4-.65.27-1.18.41-1.58.42-.62.02-1.24-.25-1.85-.82-.4-.34-.89-.92-1.48-1.74-.62-.88-1.14-1.9-1.54-3.06C.36 11.6.14 10.5.14 9.45c0-1.22.27-2.27.8-3.15a4.62 4.62 0 0 1 1.66-1.67 4.4 4.4 0 0 1 2.24-.63c.49 0 1.14.15 1.94.45.8.3 1.32.45 1.55.45.17 0 .74-.18 1.71-.53.92-.32 1.69-.46 2.32-.4 1.7.13 2.98.8 3.83 2.02-1.52.91-2.27 2.18-2.26 3.82.01 1.28.48 2.35 1.4 3.2.42.39.89.7 1.41.92-.11.32-.23.63-.36.92zM12.13 1.18c0 .91-.34 1.76-1.01 2.55-.8.94-1.78 1.48-2.83 1.4a2.8 2.8 0 0 1-.03-.34c0-.87.39-1.81 1.07-2.57.34-.39.78-.71 1.31-.97a3.7 3.7 0 0 1 1.45-.41c.01.12.04.23.04.34z"/>
+      </svg>`
+    }
+  };
+
   // ─── Supabase Browser-Client (für OAuth) ─────────────────────────────────
   // Wird nur initialisiert, wenn die supabase-js-Library + Public-Werte da
   // sind. Bei fehlendem Setup bleiben OAuth-Buttons funktionslos — Magic
@@ -223,24 +248,18 @@
           <button type="submit" class="auth-modal__submit">Login-Link senden</button>
           <div class="auth-modal__status" aria-live="polite"></div>
         </form>
-        ${oauthEnabled ? `
+        ${oauthEnabled && OAUTH_PROVIDERS.length ? `
           <div class="auth-modal__divider"><span>oder</span></div>
           <div class="auth-modal__oauth">
-            <button type="button" class="auth-modal__oauth-btn" data-provider="google">
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.08-1.79 2.72v2.26h2.9c1.7-1.57 2.69-3.88 2.69-6.62z"/>
-                <path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.9-2.26c-.81.54-1.83.86-3.06.86-2.35 0-4.34-1.59-5.05-3.71H.96v2.34A9 9 0 0 0 9 18z"/>
-                <path fill="#FBBC05" d="M3.95 10.71A5.4 5.4 0 0 1 3.66 9c0-.59.1-1.17.29-1.71V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l2.99-2.34z"/>
-                <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58A8.99 8.99 0 0 0 9 0 9 9 0 0 0 .96 4.95l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/>
-              </svg>
-              <span>Mit Google fortfahren</span>
-            </button>
-            <button type="button" class="auth-modal__oauth-btn" data-provider="apple">
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" fill="currentColor">
-                <path d="M14.84 14.04c-.3.7-.66 1.34-1.08 1.94-.58.81-1.05 1.37-1.42 1.68-.56.51-1.17.78-1.81.8-.46 0-1.02-.13-1.66-.4-.65-.27-1.24-.4-1.78-.4-.57 0-1.18.13-1.83.4-.65.27-1.18.41-1.58.42-.62.02-1.24-.25-1.85-.82-.4-.34-.89-.92-1.48-1.74-.62-.88-1.14-1.9-1.54-3.06C.36 11.6.14 10.5.14 9.45c0-1.22.27-2.27.8-3.15a4.62 4.62 0 0 1 1.66-1.67 4.4 4.4 0 0 1 2.24-.63c.49 0 1.14.15 1.94.45.8.3 1.32.45 1.55.45.17 0 .74-.18 1.71-.53.92-.32 1.69-.46 2.32-.4 1.7.13 2.98.8 3.83 2.02-1.52.91-2.27 2.18-2.26 3.82.01 1.28.48 2.35 1.4 3.2.42.39.89.7 1.41.92-.11.32-.23.63-.36.92zM12.13 1.18c0 .91-.34 1.76-1.01 2.55-.8.94-1.78 1.48-2.83 1.4a2.8 2.8 0 0 1-.03-.34c0-.87.39-1.81 1.07-2.57.34-.39.78-.71 1.31-.97a3.7 3.7 0 0 1 1.45-.41c.01.12.04.23.04.34z"/>
-              </svg>
-              <span>Mit Apple fortfahren</span>
-            </button>
+            ${OAUTH_PROVIDERS.map(p => {
+              const m = PROVIDER_META[p];
+              if (!m) return '';
+              return `
+                <button type="button" class="auth-modal__oauth-btn" data-provider="${p}">
+                  ${m.svg}
+                  <span>${m.label}</span>
+                </button>`;
+            }).join('')}
           </div>` : ''}
       </div>`;
     document.body.appendChild(modal);
