@@ -67,6 +67,10 @@ app.use('/api/analytics', corsMiddleware, pluginKeyCheck, require('./routes/api-
 app.use('/api/admin', require('./routes/api-admin'));
 // Portal: Server-to-Server-Endpoints (Bearer-Auth via PORTAL_API_TOKEN, kein CORS)
 app.use('/api/portal', require('./routes/api-portal'));
+// Auth: Magic-Link/Logout-Endpoints + Callback-Landing-Page (Supabase Auth).
+app.use('/api/auth', corsMiddleware, pluginKeyCheck, require('./routes/api-auth'));
+// Account: eingeloggter Kunde liest sein Profil (JWT-Auth in der Middleware).
+app.use('/api/account', corsMiddleware, pluginKeyCheck, require('./routes/api-account'));
 // v1: Externe Buchungs-API (Bearer-Auth via EXTERNAL_API_TOKEN, kein CORS).
 // Swagger-Doku unter /api/v1/docs, Spec unter /api/v1/openapi.json.
 app.use('/api/v1', require('./routes/api-v1'));
