@@ -17,6 +17,7 @@ const FLOW_SCREENS = [
 
   { id: 'address',
     show: () => ['mobil', 'anderer_ort'].includes(BookingState.get('locationType')),
+    onEnter: () => window.prefillAddressFromState?.(),
     validate: () => {
       const geo = BookingState.get('geoResult');
       if (!geo || !geo.reachable) return 'Bitte gib eine gültige Adresse ein und prüfe die Verfügbarkeit.';

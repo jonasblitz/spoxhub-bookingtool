@@ -2,6 +2,33 @@
  * Geo — Location-Auswahl + Geofencing (TravelTime)
  */
 
+// Befüllt die Adress-Felder auf Screen 02 aus dem State.
+// Priorität: addressFields (vorheriger Eingabe-Stand) > customer.* (eingeloggter
+// Bestandskunde). Leere Felder werden befüllt; bereits ausgefüllte werden
+// respektiert.
+function prefillAddressFromState() {
+  const s = document.getElementById('address-street');
+  const p = document.getElementById('address-plz');
+  const c = document.getElementById('address-city');
+  const n = document.getElementById('address-notes');
+  if (!s && !p && !c) return; // Screen nicht im DOM
+
+  const fields   = BookingState.get('addressFields');
+  const customer = BookingState.get('customer') || {};
+
+  const street = fields?.street || customer.strasse || '';
+  const plz    = fields?.plz    || customer.plz     || '';
+  const city   = fields?.city   || customer.ort     || '';
+  const notes  = BookingState.get('addressNotes') || '';
+
+  if (s && !s.value && street) s.value = street;
+  if (p && !p.value && plz)    p.value = plz;
+  if (c && !c.value && city)   c.value = city;
+  if (n && !n.value && notes)  n.value = notes;
+}
+// Global exposen, damit flow.js OnEnter-Hook + auth.js sie aufrufen können
+window.prefillAddressFromState = prefillAddressFromState;
+
 function selectLocation(el) {
   const locationType = el.dataset.location;
 
@@ -287,16 +314,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const label = document.getElementById('address-label');
       if (label) label.textContent = loc === 'anderer_ort' ? 'Einsatzort' : 'Deine Adresse';
     }
-    // Restore address fields
-    const fields = BookingState.get('addressFields');
-    if (fields) {
-      const s = document.getElementById('address-street');
-      const p = document.getElementById('address-plz');
-      const c = document.getElementById('address-city');
-      if (s) s.value = fields.street || '';
-      if (p) p.value = fields.plz || '';
-      if (c) c.value = fields.city || '';
-    }
+    // Restore / prefill address fields
+    prefillAddressFromState();
     // Restore address notes (Hinweise zur Zufahrt)
     const n = document.getElementById('address-notes');
     const notes = BookingState.get('addressNotes');

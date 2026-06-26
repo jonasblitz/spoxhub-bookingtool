@@ -111,10 +111,11 @@
     }
 
     // Falls Customer/Bike-Screens schon im DOM gerendert sind (= User ist
-    // schon auf Screen 11/14/17/18 als der Login durchläuft), die Inputs
+    // schon auf Screen 02/11/14/17/18 als der Login durchläuft), die Inputs
     // direkt nachschieben. Auf neu betretenen Screens passiert das über
     // den OnEnter-Hook (flow.js).
     try { window.prefillFormFromState?.(); } catch {}
+    try { window.prefillAddressFromState?.(); } catch {}
 
     return {
       logged: true,
