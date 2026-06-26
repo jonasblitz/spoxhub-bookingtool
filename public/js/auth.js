@@ -140,7 +140,7 @@
     if (!tok) {
       el.innerHTML = `
         <div class="auth-banner auth-banner--anon">
-          <span>Schon Kunde? <button type="button" class="auth-banner__login">Einloggen</button> und Daten übernehmen.</span>
+          <span>Du bist schon Kunde? <button type="button" class="auth-banner__login">Einloggen</button> oder Account anlegen und deine Daten übernehmen.</span>
         </div>`;
       el.querySelector('.auth-banner__login')?.addEventListener('click', openLoginModal);
       return;
