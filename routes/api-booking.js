@@ -7,6 +7,7 @@ const voucher = require('./api-voucher');
 const autoPause = require('../lib/auto-pause');
 const config = require('../lib/config');
 const reservations = require('../lib/reservations');
+const webhook = require('../lib/webhook');
 const bookingCore = require('../lib/booking-core');
 const {
   pickLeastBusyWorkshopCalendar,
@@ -246,6 +247,53 @@ router.post('/confirm', async (req, res) => {
       // Sync auto-pause for this calendar+date (fail-soft)
       autoPause.syncAfterBooking(resolvedCalendarId, slot.date)
         .catch(e => console.error('[auto-pause] async error:', e.message));
+
+      // n8n-Webhook mit derselben Payload wie eTermin (URL-encoded Felder als
+      // JSON-Map). Fail-soft, blockiert die Buchungsantwort nicht.
+      const paidAttrib = process.env.ETERMIN_PAID_APPATTRIB;
+      const isPaid = !!(state.payment && (state.payment.captureId || state.payment.status === 'completed' || state.payment.amount));
+      const hasAltBilling = !!(c.rechnungStrasse || c.rechnungFirma);
+      const billing = hasAltBilling
+        ? [c.rechnungFirma, c.rechnungStrasse, `${c.rechnungPlz || ''} ${c.rechnungOrt || ''}`.trim()].filter(Boolean).join(', ')
+        : [c.strasse, `${c.plz || ''} ${c.ort || ''}`.trim()].filter(Boolean).join(', ');
+      const webhookPayload = {
+        calendarid: String(resolvedCalendarId),
+        start: startDateTime,
+        end: endDateTime,
+        firstname: c.vorname || '',
+        lastname:  c.name    || '',
+        email:     c.email   || '',
+        phone:     c.mobil   || '',
+        street:    c.strasse || '',
+        zip:       c.plz     || '',
+        city:      c.ort     || '',
+        notes:     notes || '',
+        sendemail: '1',
+        manualconfirmed: '1',
+        sync: '1',
+        canceldeadline: '1440',
+        ...(appointmentLocation ? { location: appointmentLocation } : {}),
+        ...(eterminServiceIds.length ? { services: eterminServiceIds.join(',') } : {}),
+        ...(state.agbAccepted        ? { agbaccepted: '1' } : {}),
+        ...(state.privacyAccepted    ? { dataprivacyaccepted: '1' } : {}),
+        ...(state.newsletterOptIn    ? { newsletter: '1' } : {}),
+        ...(state.feedbackOptIn      ? { feedbackpermissionaccepted: '1' } : {}),
+        ...(state.bike?.marke        ? { additional1:  state.bike.marke }        : {}),
+        ...(state.bike?.modell       ? { additional2:  state.bike.modell }       : {}),
+        ...(state.bike?.rahmennummer ? { additional3:  state.bike.rahmennummer } : {}),
+        ...(state.bike?.leasing      ? { additional4:  state.bike.leasing }      : {}),
+        ...(state.bike?.leasingNr    ? { additional5:  state.bike.leasingNr }    : {}),
+        ...(billing                  ? { additional8:  billing }                 : {}),
+        ...(state.payment?.orderId   ? { additional9:  state.payment.orderId }   : {}),
+        ...(state.bike?.versicherung   ? { additional16: state.bike.versicherung }   : {}),
+        ...(state.bike?.versicherungNr ? { additional17: state.bike.versicherungNr } : {}),
+        ...(paidAttrib && isPaid     ? { appattrib: String(paidAttrib) }         : {}),
+        // Extras, die eTermin nicht im POST-Body hat, aber für n8n nützlich sind:
+        eterminBookingId: eterminBookingId || null,
+        eterminExternalId: result.ExternalID || null
+      };
+      webhook.postOrderWebhook(webhookPayload)
+        .catch(e => console.error('[webhook] async error:', e.message));
 
       return res.json({
         success: true,
