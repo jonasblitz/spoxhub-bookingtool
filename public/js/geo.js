@@ -129,6 +129,23 @@ async function checkAddress() {
       const isGeocodeFail = /nicht gefunden|nicht ermittelt/i.test(msg);
       if (isGeocodeFail) outOfArea?.classList.add('hidden');
       else outOfArea?.classList.remove('hidden');
+
+      // Session-Abort tracken — Adresse + Grund in Airtable Sessions
+      try {
+        if (typeof window.getAnalyticsSessionId === 'function') {
+          const reason = isGeocodeFail ? 'geocode_failed' : 'outside_area';
+          fetch(API_BASE + '/api/analytics/abort', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true,
+            body: JSON.stringify({
+              sessionId: window.getAnalyticsSessionId(),
+              reason,
+              address: address
+            })
+          }).catch(() => { /* fail-soft */ });
+        }
+      } catch (_) { /* fail-soft */ }
     }
   } catch (err) {
     console.error('Geo check error:', err);

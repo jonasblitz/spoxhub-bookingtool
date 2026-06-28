@@ -40,4 +40,24 @@ router.post('/screen', async (req, res) => {
   }, res, 'screen');
 });
 
+// POST /abort  { sessionId, reason, address? }
+// Markiert die Session als abgebrochen mit Grund und (für outside_area) der
+// eingegebenen Adresse. Wird heute von geo.js bei "außerhalb Einsatzgebiet"
+// aufgerufen. Idempotent — gleicher Reason überschreibt nicht.
+router.post('/abort', async (req, res) => {
+  const { sessionId, reason, address } = req.body || {};
+  if (!sessionId || !reason) return res.status(400).json({ ok: false, error: 'sessionId and reason required' });
+  if (!analytics.isConfigured()) return res.json({ ok: false, skipped: true });
+
+  return safely(async () => {
+    const meta = { AbortReason: reason };
+    if (address) meta.AbortedAddress = String(address).slice(0, 500);
+    // Wir piggybacken auf appendScreenToSession — die Funktion macht ein
+    // upsert via SessionID. screenId wird beim Abort als '_abort' getaggt
+    // (taucht in ScreenHistory auf, damit die Sequenz klar bleibt).
+    const record = await analytics.appendScreenToSession(sessionId, `_abort:${reason}`, meta);
+    return { recordId: record?.id };
+  }, res, 'abort');
+});
+
 module.exports = router;

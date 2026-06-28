@@ -51,7 +51,20 @@ const FIELDS = [
   { name: 'Referrer',    type: 'multilineText' }    // erste Referrer-URL, kann lang sein
 ];
 
-async function processTable(tableId, label) {
+// Sessions-spezifische Felder (Bookings betrifft das nicht, weil nur erfolgreiche
+// Buchungen dort landen — abgebrochene haben keine Booking-Row).
+const SESSION_ONLY_FIELDS = [
+  { name: 'AbortReason', type: 'singleSelect', options: { choices: [
+      { name: 'outside_area',    color: 'redLight2' },
+      { name: 'geocode_failed',  color: 'orangeLight2' },
+      { name: 'payment_failed',  color: 'yellowLight2' },
+      { name: 'user_cancelled',  color: 'grayLight2' }
+    ]}
+  },
+  { name: 'AbortedAddress', type: 'singleLineText' }
+];
+
+async function processTable(tableId, label, fieldSet) {
   if (!tableId) { console.warn(`→ ${label}: keine TABLE-ID in .env — übersprungen`); return; }
   console.log(`\n── ${label} (${tableId}) ──`);
 
@@ -60,9 +73,9 @@ async function processTable(tableId, label) {
   if (!table) { console.warn(`  ✗ Tabelle nicht gefunden`); return; }
 
   const existingNames = new Set(table.fields.map(f => f.name));
-  const missing = FIELDS.filter(f => !existingNames.has(f.name));
+  const missing = fieldSet.filter(f => !existingNames.has(f.name));
   if (missing.length === 0) {
-    console.log(`  ✓ alle ${FIELDS.length} Felder bereits vorhanden`);
+    console.log(`  ✓ alle ${fieldSet.length} Felder bereits vorhanden`);
     return;
   }
   console.log(`  → ${missing.length} neue Felder anlegen…`);
@@ -78,7 +91,7 @@ async function processTable(tableId, label) {
 
 (async () => {
   console.log(`setup-source-fields — Sessions + Bookings\n`);
-  await processTable(TABLE_SESSIONS, 'Sessions');
-  await processTable(TABLE_BOOKINGS, 'Bookings');
+  await processTable(TABLE_SESSIONS, 'Sessions', [...FIELDS, ...SESSION_ONLY_FIELDS]);
+  await processTable(TABLE_BOOKINGS, 'Bookings', FIELDS);
   console.log('\n✓ Done.');
 })().catch(err => { console.error('❌', err.message); process.exit(1); });
