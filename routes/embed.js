@@ -53,6 +53,7 @@ router.get('/config', (req, res) => {
     // müssen. Plugin enqueued sie 1:1. Pfad ist relativ zum API-Base.
     scripts: [
       'js/state.js',
+      'js/source.js',
       'js/analytics.js',
       'js/sidebar-updater.js',
       'js/geo.js',

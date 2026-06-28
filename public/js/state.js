@@ -42,7 +42,11 @@ const BookingState = (() => {
     addressNotes: '',
     selectedSlot: null,
     pricing: null,
-    bookingResult: null
+    bookingResult: null,
+    // Traffic-Source (last-touch attribution). Wird von public/js/source.js
+    // beim Boot gesetzt: { classification, utmSource, utmMedium, utmCampaign,
+    // utmContent, utmTerm, gclid, fbclid, referrer, detectedAt, pageUrl }
+    source: null
   };
 
   let _state;

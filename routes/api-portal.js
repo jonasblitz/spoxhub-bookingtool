@@ -213,7 +213,17 @@ function mergeAppointment(apt, calendarName, enrichment) {
     status: af.Status || null,
     cancellationReason: af.CancellationReason || null,
     cancellationLog: af.CancellationLog || null,
-    createdAt: af.CreatedAt || null
+    createdAt: af.CreatedAt || null,
+
+    // Traffic-Source (last-touch attribution)
+    source: af.Source || null,
+    utmSource:   af.UtmSource   || null,
+    utmMedium:   af.UtmMedium   || null,
+    utmCampaign: af.UtmCampaign || null,
+    utmContent:  af.UtmContent  || null,
+    utmTerm:     af.UtmTerm     || null,
+    clickId:     af.ClickId     || null,
+    referrer:    af.Referrer    || null
   };
 }
 
@@ -380,7 +390,15 @@ router.get('/bookings/:recordId', async (req, res) => {
         status: f.Status || null,
         cancellationReason: f.CancellationReason || null,
         cancellationLog: f.CancellationLog || null,
-        createdAt: f.CreatedAt || null
+        createdAt: f.CreatedAt || null,
+        source: f.Source || null,
+        utmSource:   f.UtmSource   || null,
+        utmMedium:   f.UtmMedium   || null,
+        utmCampaign: f.UtmCampaign || null,
+        utmContent:  f.UtmContent  || null,
+        utmTerm:     f.UtmTerm     || null,
+        clickId:     f.ClickId     || null,
+        referrer:    f.Referrer    || null
       };
     }
 

@@ -28,11 +28,16 @@
     if (!screenId || screenId === lastSentScreen) return;
     lastSentScreen = screenId;
 
+    // Source aus BookingState (von source.js gesetzt) mitsenden — Server
+    // schreibt das in die Sessions-Tabelle (Source/UtmSource/...).
+    const source = (typeof BookingState !== 'undefined') ? BookingState.get('source') : null;
+
     const payload = {
       sessionId: getSessionId(),
       screenId,
       userAgent: navigator.userAgent,
-      referrer: document.referrer || ''
+      referrer: document.referrer || '',
+      source
     };
 
     try {
