@@ -210,17 +210,27 @@
   }
 
   // ─── OAuth ────────────────────────────────────────────────────────────────
-  // Startet den OAuth-Redirect zu Google / Apple. Supabase übernimmt den
-  // Callback und routet uns danach zurück auf /api/auth/callback, wo das
-  // Token in localStorage geschrieben wird.
+  // Startet den OAuth-Redirect zu Google / Apple.
+  //
+  // Wir leiten den User zurück auf die AKTUELLE Page-URL (ohne Hash). Damit:
+  //   1. Im standalone (spoxhub.io/booking/) landet er wieder auf der
+  //      Booking-Seite — der Hash-Parser unten greift den Token raus.
+  //   2. Im WP-Embed (radblitz.de/buchen/) bleibt er auf der WordPress-Seite —
+  //      Token landet in localStorage von radblitz.de (derselben Origin wie
+  //      die spätere Profil-/API-Calls), kein Cross-Origin-Bruch.
+  //
+  // Die alte Variante `${window.location.origin}${API_BASE}/api/auth/callback`
+  // war broken im Embed-Setup: API_BASE ist dort absolut (z.B.
+  // https://spoxhub.io/booking) und wurde doppelt-prefixiert mit der WP-
+  // Origin → kaputte URL → Redirect schlug fehl.
   async function signInWithProvider(provider) {
     const sb = getSbClient();
     if (!sb) {
       console.warn('[auth] supabase-js not available — OAuth nicht möglich');
       return { error: 'supabase-js missing' };
     }
-    const apiBase = (typeof window.API_BASE === 'string' ? window.API_BASE : '').replace(/\/$/, '');
-    const redirectTo = `${window.location.origin}${apiBase}/api/auth/callback`;
+    const redirectTo = window.location.href.split('#')[0];
+    console.log('[auth] OAuth start', provider, '→', redirectTo);
     const { data, error } = await sb.auth.signInWithOAuth({
       provider,                       // 'google' | 'apple'
       options: { redirectTo, skipBrowserRedirect: false }
@@ -228,6 +238,31 @@
     if (error) console.error('[auth] OAuth start error:', error.message);
     return { data, error };
   }
+
+  // ─── Hash-Parser (für OAuth-Returns auf der aktuellen Page) ─────────────
+  // Supabase OAuth gibt den User mit `#access_token=…&refresh_token=…`
+  // zurück. Wir greifen den Hash beim Boot ab, schreiben das Token in
+  // localStorage, entfernen den Hash aus der URL und feuern ein
+  // 'auth:changed'-Event, damit das Banner sich aktualisiert.
+  function parseHashTokens() {
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    if (!hash.includes('access_token=')) return false;
+    const p = new URLSearchParams(hash);
+    const access  = p.get('access_token');
+    const refresh = p.get('refresh_token');
+    if (!access) return false;
+    setToken(access, refresh);
+    // Hash entfernen — schöner für den User und verhindert Re-Apply bei Reload
+    try {
+      const cleanUrl = window.location.pathname + window.location.search;
+      history.replaceState(null, '', cleanUrl);
+    } catch {}
+    window.dispatchEvent(new CustomEvent('auth:changed'));
+    console.log('[auth] hash-token captured, applied to localStorage');
+    return true;
+  }
+  // Sofort beim Script-Load ausführen — vor jeglichem Render
+  parseHashTokens();
 
   // ─── Login-Modal ──────────────────────────────────────────────────────────
   function openLoginModal() {
