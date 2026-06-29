@@ -52,7 +52,10 @@ Linkes Menü → **APIs & Services → OAuth consent screen**:
 4. **Authorized domains** (drücke Enter zwischen den Einträgen):
    - `radblitz.de`
    - `spoxhub.io`
-   - `supabase.co`
+   - **NICHT** `supabase.co` — Google blockt das, weil die Domain dir
+     nicht gehört (Domain-Verification fehlt). Supabase wird erst in der
+     Client-ID-Config bei den Redirect URIs gebraucht (siehe A3), das ist
+     OK ohne Verifikation.
 5. **Developer contact information**: deine Email
 6. → Save and Continue
 
