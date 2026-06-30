@@ -101,6 +101,8 @@ CSS;
         // duplizieren, sonst sind ALLE fetch()-Calls (geo, catalog, booking, …)
         // mit `undefined`-Prefix kaputt.
         $namespace = substr( md5( home_url() ), 0, 8 );
+        $supabase_url      = isset( $config['supabaseUrl'] )      ? (string) $config['supabaseUrl']      : '';
+        $supabase_anon_key = isset( $config['supabaseAnonKey'] )  ? (string) $config['supabaseAnonKey']  : '';
         $bootstrap = sprintf(
             "window.SPOXHUB_API_BASE = %s;\n" .
             "window.SPOXHUB_STATE_NAMESPACE = %s;\n" .
@@ -108,17 +110,37 @@ CSS;
             // `API_BASE` direkt (lexikalisch erreichbar zwischen <script>-Tags),
             // teilweise `window.API_BASE`. Beides setzen.
             "const API_BASE = window.SPOXHUB_API_BASE.replace(/\\/\$/, '');\n" .
-            "window.API_BASE = API_BASE;\n",
+            "window.API_BASE = API_BASE;\n" .
+            // Supabase Public-Werte für OAuth (auth.js). Anon-Key ist absichtlich
+            // öffentlich, RLS-Policies regeln die DB-Sicht.
+            "window.SUPABASE_URL = %s;\n" .
+            "window.SUPABASE_ANON_KEY = %s;\n",
             wp_json_encode( $api_base ),
-            wp_json_encode( $namespace )
+            wp_json_encode( $namespace ),
+            wp_json_encode( $supabase_url ),
+            wp_json_encode( $supabase_anon_key )
         );
+
+        // ─── Vendor-Scripts (z.B. supabase-js CDN) ────────────────────────
+        // Müssen VOR den Booking-Tool-Scripts geladen werden, weil auth.js
+        // `window.supabase.createClient(...)` aufruft.
+        $vendor_scripts = isset( $config['vendorScripts'] ) && is_array( $config['vendorScripts'] )
+            ? $config['vendorScripts'] : [];
+        $vendor_handles = [];
+        foreach ( $vendor_scripts as $i => $vendor_url ) {
+            $handle = self::HANDLE_PREFIX . 'vendor-' . $i;
+            wp_enqueue_script( $handle, $vendor_url, [], $version, true );
+            $vendor_handles[] = $handle;
+        }
 
         // ─── Scripts (in der vom Backend vorgegebenen Reihenfolge) ────────
         $scripts = isset( $config['scripts'] ) && is_array( $config['scripts'] ) ? $config['scripts'] : [];
         $previous_handle = null;
         foreach ( $scripts as $i => $rel_path ) {
             $handle = self::HANDLE_PREFIX . 'js-' . $i;
-            $deps   = $previous_handle ? [ $previous_handle ] : [];
+            // Erstes Booking-Tool-Script hängt an den vendor-handles (damit
+            // supabase-js zuerst geladen ist), Folgescripts an dem vorigen.
+            $deps   = $previous_handle ? [ $previous_handle ] : $vendor_handles;
             wp_enqueue_script(
                 $handle,
                 $this->resolve_url( $api_base, $rel_path ),

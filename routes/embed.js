@@ -49,11 +49,21 @@ router.get('/config', (req, res) => {
     paypalMode: process.env.PAYPAL_MODE || 'sandbox',
     agbUrl: process.env.AGB_URL || 'https://spoxhub.io/agb',
     privacyUrl: process.env.PRIVACY_URL || 'https://spoxhub.io/datenschutz',
+    // Supabase Public-Werte fürs Browser-Auth (Magic Link + OAuth). Anon-Key
+    // ist absichtlich öffentlich — RLS-Policies regeln Datenzugriff.
+    supabaseUrl:     process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+    // External CDN-Scripts, die VOR allen Booking-Tool-eigenen Scripts
+    // geladen werden müssen (z.B. supabase-js wird von auth.js benötigt).
+    vendorScripts: (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) ? [
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'
+    ] : [],
     // Liste der Frontend-Scripts in der Reihenfolge, in der sie geladen werden
     // müssen. Plugin enqueued sie 1:1. Pfad ist relativ zum API-Base.
     scripts: [
       'js/state.js',
       'js/source.js',
+      'js/auth.js',           // NACH state.js, VOR analytics.js (das den Token nutzen kann)
       'js/analytics.js',
       'js/sidebar-updater.js',
       'js/geo.js',

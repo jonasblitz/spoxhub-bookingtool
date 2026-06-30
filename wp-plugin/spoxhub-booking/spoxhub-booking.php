@@ -3,7 +3,7 @@
  * Plugin Name:       SpoxHub Booking
  * Plugin URI:        https://spoxhub.io/
  * Description:       Bindet das SpoxHub Fahrrad-Service-Buchungstool als Shortcode [spoxhub_booking] in WordPress ein. Backend läuft auf spoxhub.io, dieses Plugin ist nur die Frontend-Hülle.
- * Version:           1.0.2
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            SpoxHub
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // ─── Konstanten ─────────────────────────────────────────────────────────
-define( 'SPOXHUB_BOOKING_VERSION', '1.0.2' );
+define( 'SPOXHUB_BOOKING_VERSION', '1.1.0' );
 define( 'SPOXHUB_BOOKING_FILE',    __FILE__ );
 define( 'SPOXHUB_BOOKING_DIR',     plugin_dir_path( __FILE__ ) );
 define( 'SPOXHUB_BOOKING_URL',     plugin_dir_url( __FILE__ ) );
