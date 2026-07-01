@@ -209,34 +209,88 @@
     el.querySelector('.auth-banner__logout')?.addEventListener('click', logout);
   }
 
-  // ─── OAuth ────────────────────────────────────────────────────────────────
-  // Startet den OAuth-Redirect zu Google / Apple.
+  // ─── OAuth via Popup ──────────────────────────────────────────────────────
   //
-  // Wir leiten den User zurück auf die AKTUELLE Page-URL (ohne Hash). Damit:
-  //   1. Im standalone (spoxhub.io/booking/) landet er wieder auf der
-  //      Booking-Seite — der Hash-Parser unten greift den Token raus.
-  //   2. Im WP-Embed (radblitz.de/buchen/) bleibt er auf der WordPress-Seite —
-  //      Token landet in localStorage von radblitz.de (derselben Origin wie
-  //      die spätere Profil-/API-Calls), kein Cross-Origin-Bruch.
+  // Öffnet einen Popup mit dem Server-Endpoint /api/auth/oauth-popup?provider=…
+  // Nach erfolgreichem Login schickt die Popup-Callback-Page per postMessage
+  // das Token an window.opener (= dieses Fenster). Wir speichern es in
+  // localStorage und triggern Auth-Refresh (Banner + Profil-Load).
   //
-  // Die alte Variante `${window.location.origin}${API_BASE}/api/auth/callback`
-  // war broken im Embed-Setup: API_BASE ist dort absolut (z.B.
-  // https://spoxhub.io/booking) und wurde doppelt-prefixiert mit der WP-
-  // Origin → kaputte URL → Redirect schlug fehl.
-  async function signInWithProvider(provider) {
-    const sb = getSbClient();
-    if (!sb) {
-      console.warn('[auth] supabase-js not available — OAuth nicht möglich');
-      return { error: 'supabase-js missing' };
+  // Funktioniert standalone und im iframe. Iframe und Popup teilen dieselbe
+  // spoxhub.io-Origin, daher können sie via postMessage und localStorage
+  // frei reden — die äußere WP-Wrapper-Origin (radblitz.de) wird nicht
+  // angefasst.
+  //
+  // WICHTIG: window.open MUSS synchron im Click-Handler passieren, sonst
+  // blockt der Popup-Blocker. Deshalb ist diese Funktion synchron
+  // (keine await vor window.open).
+  function signInWithProvider(provider) {
+    let popupBase = (typeof window.SPOXHUB_API_BASE === 'string' && window.SPOXHUB_API_BASE)
+      ? window.SPOXHUB_API_BASE
+      : (typeof window.API_BASE === 'string' ? window.API_BASE : '');
+    popupBase = popupBase.replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(popupBase)) {
+      popupBase = window.location.origin + (popupBase.startsWith('/') ? popupBase : '/' + popupBase);
     }
-    const redirectTo = window.location.href.split('#')[0];
-    console.log('[auth] OAuth start', provider, '→', redirectTo);
-    const { data, error } = await sb.auth.signInWithOAuth({
-      provider,                       // 'google' | 'apple'
-      options: { redirectTo, skipBrowserRedirect: false }
-    });
-    if (error) console.error('[auth] OAuth start error:', error.message);
-    return { data, error };
+    const url = `${popupBase}/api/auth/oauth-popup?provider=${encodeURIComponent(provider)}`;
+    const w = 520, h = 640;
+    const x = Math.max(0, (screen.width  - w) / 2);
+    const y = Math.max(0, (screen.height - h) / 2);
+    const popup = window.open(url, 'spoxhub-auth', `width=${w},height=${h},left=${x},top=${y},resizable=yes,scrollbars=yes`);
+    if (!popup) {
+      return { error: { message: 'Popup wurde blockiert. Bitte Popups für spoxhub.io erlauben und erneut versuchen.' } };
+    }
+    popup.focus?.();
+    attachPopupListener(popup);
+    console.log('[auth] OAuth popup opened →', url);
+    return { data: { popup }, error: null };
+  }
+
+  // Wartet auf das postMessage aus dem Popup-Callback (oder Popup-Close als
+  // Cancel-Signal). Sowohl standalone als auch im iframe.
+  function attachPopupListener(popup) {
+    const targetOrigin = (function () {
+      let base = (typeof window.SPOXHUB_API_BASE === 'string' && window.SPOXHUB_API_BASE) ? window.SPOXHUB_API_BASE : '';
+      const m = base.match(/^https?:\/\/[^/]+/);
+      if (m) return m[0];
+      return window.location.origin;
+    })();
+
+    function handler(e) {
+      if (e.origin !== targetOrigin) return;
+      if (e.data?.type !== 'spoxhub-auth/login') return;
+      const { access_token, refresh_token } = e.data;
+      if (!access_token) return;
+      console.log('[auth] popup returned token');
+      setToken(access_token, refresh_token || undefined);
+      cleanup();
+      window.dispatchEvent(new CustomEvent('auth:changed'));
+      applyProfileToState()
+        .then(() => renderBanner('#auth-banner'))
+        .catch(err => console.warn('[auth] post-login profile error:', err.message));
+    }
+
+    const watch = setInterval(() => {
+      if (popup?.closed) {
+        console.log('[auth] popup closed');
+        cleanup();
+        // Popup könnte trotzdem localStorage gesetzt haben (postMessage nicht
+        // durchgekommen, z.B. Cross-Storage-Isolation). Poll einmalig.
+        if (getToken()) {
+          window.dispatchEvent(new CustomEvent('auth:changed'));
+          applyProfileToState()
+            .then(() => renderBanner('#auth-banner'))
+            .catch(err => console.warn('[auth] post-close profile error:', err.message));
+        }
+      }
+    }, 500);
+
+    function cleanup() {
+      clearInterval(watch);
+      window.removeEventListener('message', handler);
+    }
+
+    window.addEventListener('message', handler);
   }
 
   // ─── Hash-Parser (für OAuth-Returns auf der aktuellen Page) ─────────────
@@ -299,19 +353,28 @@
       </div>`;
     document.body.appendChild(modal);
 
-    // OAuth-Buttons verkabeln
+    // OAuth-Buttons verkabeln — SYNCHRONER Handler (kein async!), damit
+    // window.open direkt im User-Click aufgerufen wird und der Popup-
+    // Blocker nichts blockt.
     modal.querySelectorAll('.auth-modal__oauth-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', () => {
         const provider = btn.dataset.provider;
         btn.disabled = true;
         const status = modal.querySelector('.auth-modal__status');
-        if (status) status.textContent = `Leite weiter zu ${provider === 'google' ? 'Google' : 'Apple'} …`;
-        const { error } = await signInWithProvider(provider);
+        if (status) status.textContent = `Öffne ${provider === 'google' ? 'Google' : 'Apple'}-Login …`;
+        const { error } = signInWithProvider(provider);
         if (error) {
           if (status) status.textContent = `Fehler: ${error.message || error}`;
           btn.disabled = false;
+          return;
         }
-        // Erfolg → Browser redirected automatisch, Modal verschwindet danach.
+        // Popup läuft. Login-Success → auth:changed-Event → Modal schließen
+        const onAuth = () => {
+          window.removeEventListener('auth:changed', onAuth);
+          if (status) status.textContent = 'Eingeloggt — schließe …';
+          setTimeout(() => modal.remove(), 400);
+        };
+        window.addEventListener('auth:changed', onAuth);
       });
     });
 

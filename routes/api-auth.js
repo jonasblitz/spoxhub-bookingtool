@@ -178,6 +178,127 @@ router.get('/callback', (req, res) => {
 </html>`);
 });
 
+// ─── GET /api/auth/oauth-popup ─────────────────────────────────────────────
+//
+// Startet einen OAuth-Flow, der für einen Popup-Kontext gedacht ist:
+// nach erfolgreichem Login landet der Browser auf /api/auth/popup-callback,
+// das den Token per postMessage an window.opener sendet und das Fenster
+// schließt.
+//
+// Wird vom iframe-embedded Booking-Tool benutzt: window.open('…/oauth-popup?
+// provider=google') → Popup läuft OAuth → schickt Token zurück → iframe
+// speichert Token und lädt Profil. Der WP-Wrapper bleibt unangetastet.
+//
+// Query: ?provider=google|apple (whitelist — sonst 400)
+
+router.get('/oauth-popup', async (req, res) => {
+  const provider = String(req.query.provider || '').toLowerCase();
+  if (!['google', 'apple'].includes(provider)) {
+    return res.status(400).send('unsupported provider');
+  }
+  if (!supabase.isConfigured()) {
+    return res.status(503).send('auth not configured');
+  }
+  try {
+    const client = supabase.getAuthClient();
+    const redirectTo = `${publicBaseUrl(req)}/api/auth/popup-callback`;
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo, skipBrowserRedirect: true }
+    });
+    if (error || !data?.url) {
+      console.error('[auth] oauth-popup start error:', error?.message || 'no url');
+      return res.status(500).send('oauth start failed');
+    }
+    // Direkt zum Google/Apple-OAuth-Endpoint weiterleiten
+    res.redirect(302, data.url);
+  } catch (err) {
+    console.error('[auth] oauth-popup error:', err);
+    res.status(500).send(err.message);
+  }
+});
+
+// ─── GET /api/auth/popup-callback ──────────────────────────────────────────
+//
+// Landing-Page nach dem OAuth-Login im Popup. Extrahiert Token aus
+// URL-Hash, postMessage an window.opener + self.close().
+// Fallback (kein opener oder postMessage klappt nicht): Redirect zur
+// Booking-Tool-Startseite mit Token in localStorage.
+
+router.get('/popup-callback', (req, res) => {
+  const baseUrl = publicBaseUrl(req);
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Anmeldung läuft …</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #3d0046; color: #fff; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+    .box { background:#5a0064; padding:2rem 2.5rem; border-radius:16px; text-align:center; max-width:26rem; border:1px solid #7d3386; }
+    .box strong { color:#e8ff00; }
+    .err { color:#ff8080; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1 id="title">Anmeldung läuft …</h1>
+    <p id="msg">Einen kleinen Moment, dann schließt sich das Fenster.</p>
+  </div>
+  <script>
+    (function () {
+      const hash = (window.location.hash || '').replace(/^#/, '');
+      const params = new URLSearchParams(hash);
+      const access  = params.get('access_token');
+      const refresh = params.get('refresh_token');
+      const errorDesc = params.get('error_description') || params.get('error');
+      const targetOrigin = ${JSON.stringify(baseUrl.match(/^https?:\/\/[^/]+/)?.[0] || '*')};
+
+      function show(kind, text) {
+        document.getElementById('title').textContent = kind === 'err' ? 'Anmeldung fehlgeschlagen' : 'Fertig!';
+        document.getElementById('title').className = kind;
+        document.getElementById('msg').textContent = text;
+      }
+
+      if (errorDesc) return show('err', decodeURIComponent(errorDesc));
+      if (!access)   return show('err', 'Kein Token erhalten.');
+
+      // 1. localStorage (auch für den Fallback: iframe kann später darauf zugreifen,
+      //    weil Popup und iframe dieselbe spoxhub.io-Origin haben)
+      try {
+        localStorage.setItem('booking_jwt', access);
+        if (refresh) localStorage.setItem('booking_refresh', refresh);
+      } catch (e) { /* ignore */ }
+
+      // 2. postMessage an opener (das ist das iframe-Fenster, ebenfalls spoxhub.io-Origin)
+      let sent = false;
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({
+            type: 'spoxhub-auth/login',
+            access_token: access,
+            refresh_token: refresh || null
+          }, targetOrigin);
+          sent = true;
+        }
+      } catch (_) {}
+
+      // 3. Kurzer Feedback und dann schließen (oder Redirect als Fallback)
+      show('ok', sent ? 'Login geklappt — dieses Fenster schließt sich gleich.' : 'Weiterleiten …');
+      setTimeout(() => {
+        try { window.close(); } catch (_) {}
+        // Wenn Fenster nicht schließbar (kein opener oder Browser blockiert) → redirect
+        if (!window.closed) {
+          window.location.replace(${JSON.stringify(baseUrl)} + '/');
+        }
+      }, sent ? 400 : 800);
+    })();
+  </script>
+</body>
+</html>`);
+});
+
 // ─── POST /api/auth/logout ─────────────────────────────────────────────────
 
 router.post('/logout', async (req, res) => {
