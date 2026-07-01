@@ -1604,3 +1604,43 @@ body {
 }
 .auth-modal__oauth-btn:disabled { opacity: 0.5; cursor: default; }
 .auth-modal__oauth-btn svg { flex-shrink: 0; }
+
+/* Onboarding-Modal (nach Login-Erfolg) */
+.onboard-panel { width: min(500px, 92vw); }
+.onboard-panel h2 { margin-bottom: 0.75rem; }
+.onboard-panel h3 {
+  margin: 1.25rem 0 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #d6b3db;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.onboard-summary {
+  list-style: none;
+  padding: 0.75rem 1rem;
+  margin: 0 0 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #7d3386;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #fff;
+}
+.onboard-summary li { padding: 0.15rem 0; }
+.onboard-summary li strong { color: #e8ff00; margin-right: 0.35rem; }
+.onboard-section { margin-top: 0.5rem; }
+.onboard-providers { display: flex; flex-direction: column; gap: 0.5rem; }
+.onboard-link-btn.is-linked {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #86efac;
+}
+.onboard-password { display: flex; gap: 0.5rem; }
+.onboard-password input { flex: 1; margin: 0; }
+.onboard-pw-btn { width: auto !important; white-space: nowrap; padding: 0.55rem 0.9rem !important; }
+.onboard-pw-status:empty { min-height: 0; margin: 0; }
+.onboard-footer {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #7d3386;
+}

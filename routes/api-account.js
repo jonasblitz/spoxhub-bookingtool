@@ -56,6 +56,7 @@ router.get('/profile', async (req, res) => {
         firstName: customer.first_name,
         lastName:  customer.last_name,
         externalBookingId: customer.external_booking_id,
+        onboardingCompletedAt: customer.onboarding_completed_at || null,
         isNew
       },
       contact: {
@@ -84,6 +85,50 @@ router.get('/profile', async (req, res) => {
     });
   } catch (err) {
     console.error('[account] profile error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/account/identities ───────────────────────────────────────────
+// Liste der verknüpften Auth-Provider für den eingeloggten User.
+// Wird vom Frontend genutzt, um „Mit Google verbinden"-Buttons entsprechend
+// auf ✓/leer zu setzen.
+
+router.get('/identities', async (req, res) => {
+  try {
+    const admin = supabase.getAdminClient();
+    const { data, error } = await admin.auth.admin.getUserById(req.user.id);
+    if (error) throw error;
+    const identities = (data?.user?.identities || []).map(i => ({
+      provider: i.provider,
+      email: i.identity_data?.email || null,
+      createdAt: i.created_at
+    }));
+    const hasPassword = !!data?.user?.encrypted_password
+      || identities.some(i => i.provider === 'email');
+    res.json({ identities, hasPassword });
+  } catch (err) {
+    console.error('[account] identities error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/account/complete-onboarding ─────────────────────────────────
+// Wird vom Frontend gerufen wenn der User im Willkommens-Modal „Weiter zum
+// Buchen" klickt. Setzt onboarding_completed_at auf jetzt — damit das Modal
+// beim nächsten Login nicht wieder auftaucht.
+
+router.post('/complete-onboarding', async (req, res) => {
+  try {
+    const admin = supabase.getAdminClient();
+    const now = new Date().toISOString();
+    const { error } = await admin.from('customers')
+      .update({ onboarding_completed_at: now })
+      .eq('user_id', req.user.id);
+    if (error) throw error;
+    res.json({ ok: true, completedAt: now });
+  } catch (err) {
+    console.error('[account] complete-onboarding error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -106,6 +106,8 @@
         if (window.Auth) {
           await window.Auth.applyProfileToState();
           window.Auth.renderBanner('#auth-banner');
+          // Onboarding-Modal, falls beim ersten Login noch nicht durchgeklickt
+          window.Auth.maybeShowOnboarding?.();
         }
       } catch (e) { console.warn('[auth-boot]', e.message); }
     });

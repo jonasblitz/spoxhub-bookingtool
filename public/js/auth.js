@@ -443,11 +443,221 @@
     document.querySelectorAll('[data-auth-banner]').forEach(el => renderBanner('#' + el.id || ''));
   });
 
+  // ─── Identity-Linking + Passwort-Set (Onboarding-Modal) ───────────────────
+
+  // Setzt die supabase-js-Client-Session aus dem Token im localStorage,
+  // damit `sb.auth.linkIdentity` und `sb.auth.updateUser` autorisiert sind.
+  async function primeSbSession() {
+    const sb = getSbClient();
+    if (!sb) return null;
+    const access = getToken();
+    if (!access) return null;
+    const refresh = (function () { try { return localStorage.getItem(REFRESH_KEY); } catch { return null; } })();
+    try {
+      await sb.auth.setSession({ access_token: access, refresh_token: refresh || '' });
+    } catch (err) {
+      console.warn('[auth] setSession failed:', err.message);
+    }
+    return sb;
+  }
+
+  // Verknüpft einen weiteren Provider mit dem eingeloggten Account (Popup).
+  async function linkIdentity(provider) {
+    const sb = await primeSbSession();
+    if (!sb) return { error: { message: 'nicht eingeloggt' } };
+    let popupBase = (typeof window.SPOXHUB_API_BASE === 'string' && window.SPOXHUB_API_BASE)
+      ? window.SPOXHUB_API_BASE
+      : (typeof window.API_BASE === 'string' && window.API_BASE) ? window.API_BASE : window.location.pathname;
+    popupBase = popupBase.replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(popupBase)) {
+      popupBase = window.location.origin + (popupBase.startsWith('/') ? popupBase : '/' + popupBase);
+    }
+    popupBase = popupBase.replace(/([^:])\/+$/, '$1');
+    const redirectTo = `${popupBase}/api/auth/popup-callback`;
+
+    const { data, error } = await sb.auth.linkIdentity({
+      provider,
+      options: { redirectTo, skipBrowserRedirect: true }
+    });
+    if (error || !data?.url) return { error: error || { message: 'kein URL erhalten' } };
+
+    const w = 520, h = 640;
+    const x = Math.max(0, (screen.width  - w) / 2);
+    const y = Math.max(0, (screen.height - h) / 2);
+    const popup = window.open(data.url, 'spoxhub-link', `width=${w},height=${h},left=${x},top=${y},resizable=yes,scrollbars=yes`);
+    if (!popup) return { error: { message: 'Popup wurde blockiert' } };
+    popup.focus?.();
+    attachPopupListener(popup);
+    return { data: { popup }, error: null };
+  }
+
+  // Setzt / ändert das Passwort. Danach kann sich der User auch klassisch
+  // mit Email+Passwort einloggen (zusätzlich zum Magic Link).
+  async function setPassword(newPassword) {
+    const sb = await primeSbSession();
+    if (!sb) return { error: { message: 'nicht eingeloggt' } };
+    if (!newPassword || newPassword.length < 8) {
+      return { error: { message: 'Passwort muss mindestens 8 Zeichen haben' } };
+    }
+    const { error } = await sb.auth.updateUser({ password: newPassword });
+    if (error) return { error };
+    return { ok: true };
+  }
+
+  // Onboarding als abgeschlossen markieren.
+  async function completeOnboarding() {
+    try {
+      const r = await apiFetch('api/account/complete-onboarding', { method: 'POST' });
+      return { ok: r.ok };
+    } catch (err) { return { error: err }; }
+  }
+
+  // Verknüpfte Providers laden.
+  async function getIdentities() {
+    try {
+      const r = await apiFetch('api/account/identities');
+      if (!r.ok) return { identities: [], hasPassword: false };
+      return await r.json();
+    } catch { return { identities: [], hasPassword: false }; }
+  }
+
+  // ─── Onboarding-Modal ─────────────────────────────────────────────────────
+  // Zeigt Willkommen + Bestandsdaten + Verknüpfen-Optionen + Passwort-Feld.
+
+  async function openOnboardingModal(profile) {
+    if (document.getElementById('onboard-modal')) return;
+    if (!profile) {
+      try { const r = await apiFetch('api/account/profile'); if (r.ok) profile = await r.json(); }
+      catch (_) {}
+    }
+    const identInfo = await getIdentities();
+    const providersLinked = new Set((identInfo.identities || []).map(i => i.provider));
+
+    const first = profile?.customer?.firstName || '';
+    const greet = first
+      ? `Willkommen zurück, ${first}!`
+      : `Willkommen bei Radblitz!`;
+
+    const bikeSummary = (profile?.bicycles || [])[0];
+    const bikeText = bikeSummary
+      ? `${bikeSummary.marke || ''} ${bikeSummary.modell || ''}`.trim() || 'gespeichert'
+      : null;
+
+    const addrText = profile?.address?.street
+      ? `${profile.address.street}, ${profile.address.plz || ''} ${profile.address.city || ''}`.trim()
+      : null;
+
+    const modal = document.createElement('div');
+    modal.id = 'onboard-modal';
+    modal.className = 'auth-modal';
+    modal.innerHTML = `
+      <div class="auth-modal__backdrop"></div>
+      <div class="auth-modal__panel onboard-panel">
+        <h2>${escapeHtml(greet)}</h2>
+        <p class="auth-modal__hint">Deine bei uns gespeicherten Daten sind übernommen:</p>
+        <ul class="onboard-summary">
+          ${addrText ? `<li><strong>Adresse:</strong> ${escapeHtml(addrText)}</li>` : ''}
+          ${bikeText ? `<li><strong>Fahrrad:</strong> ${escapeHtml(bikeText)}</li>` : ''}
+          ${(!addrText && !bikeText) ? '<li>Neuer Account — noch keine Buchungsdaten hinterlegt.</li>' : ''}
+        </ul>
+
+        <div class="onboard-section">
+          <h3>Beim nächsten Mal schneller einloggen</h3>
+          <div class="onboard-providers">
+            ${(OAUTH_PROVIDERS || []).map(p => {
+              const meta = PROVIDER_META[p]; if (!meta) return '';
+              const linked = providersLinked.has(p);
+              return `
+                <button type="button" class="auth-modal__oauth-btn onboard-link-btn ${linked ? 'is-linked' : ''}" data-link-provider="${p}" ${linked ? 'disabled' : ''}>
+                  ${meta.svg}
+                  <span>${linked ? '✓ Mit ' + (p === 'google' ? 'Google' : 'Apple') + ' verbunden' : meta.label.replace('fortfahren', 'verbinden')}</span>
+                </button>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="onboard-section">
+          <h3>Optional: Passwort setzen</h3>
+          <p class="auth-modal__hint">Damit kannst du dich später auch klassisch mit E-Mail + Passwort einloggen (min. 8 Zeichen).</p>
+          <div class="onboard-password">
+            <input type="password" id="onboard-pw" autocomplete="new-password" placeholder="Neues Passwort" minlength="8" />
+            <button type="button" class="auth-modal__submit onboard-pw-btn" data-set-password>Passwort setzen</button>
+          </div>
+          <div class="onboard-pw-status auth-modal__status" aria-live="polite"></div>
+        </div>
+
+        <div class="onboard-footer">
+          <button type="button" class="auth-modal__submit" data-finish>Weiter zum Buchen</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    modal.querySelectorAll('[data-link-provider]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const provider = btn.dataset.linkProvider;
+        btn.disabled = true;
+        const { error } = await linkIdentity(provider);
+        if (error) {
+          console.error('[auth] linkIdentity error:', error.message);
+          btn.disabled = false;
+          return;
+        }
+        // Beim Erfolg refresht auth:changed das Modal (via re-open unten).
+        const onAuth = () => {
+          window.removeEventListener('auth:changed', onAuth);
+          modal.remove();
+          setTimeout(() => openOnboardingModal(null), 200);
+        };
+        window.addEventListener('auth:changed', onAuth);
+      });
+    });
+
+    const pwStatus = modal.querySelector('.onboard-pw-status');
+    modal.querySelector('[data-set-password]').addEventListener('click', async () => {
+      const pw = modal.querySelector('#onboard-pw').value;
+      pwStatus.textContent = 'Speichere …';
+      const { error } = await setPassword(pw);
+      if (error) { pwStatus.textContent = 'Fehler: ' + (error.message || error); return; }
+      pwStatus.innerHTML = '<strong>✓ Passwort gesetzt.</strong>';
+    });
+
+    modal.querySelector('[data-finish]').addEventListener('click', async () => {
+      await completeOnboarding();
+      modal.remove();
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // Hook: nach jedem Login-Erfolg profile checken, ggf. Onboarding zeigen
+  async function maybeShowOnboarding() {
+    if (!getToken()) return;
+    try {
+      const r = await apiFetch('api/account/profile');
+      if (!r.ok) return;
+      const profile = await r.json();
+      if (!profile.customer?.onboardingCompletedAt) {
+        openOnboardingModal(profile);
+      }
+    } catch (err) { console.warn('[auth] maybeShowOnboarding:', err.message); }
+  }
+  // Nach jedem auth:changed prüfen (nach frischem Login getriggert)
+  window.addEventListener('auth:changed', () => {
+    if (getToken()) setTimeout(maybeShowOnboarding, 300);
+  });
+
   window.Auth = {
     getToken, setToken, clearToken,
     apiFetch,
     openLoginModal, logout,
     signInWithProvider,
+    linkIdentity, setPassword,
+    completeOnboarding, getIdentities,
+    openOnboardingModal, maybeShowOnboarding,
     applyProfileToState,
     renderBanner
   };
