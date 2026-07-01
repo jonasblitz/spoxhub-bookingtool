@@ -225,13 +225,20 @@
   // blockt der Popup-Blocker. Deshalb ist diese Funktion synchron
   // (keine await vor window.open).
   function signInWithProvider(provider) {
+    // Reihenfolge: SPOXHUB_API_BASE (WP-Plugin, absolut) → window.API_BASE
+    // (Inline-Bootstrap) → location.pathname (echter Standalone-Fallback,
+    // falls das Inline-Bootstrap fehlt oder alt ist).
     let popupBase = (typeof window.SPOXHUB_API_BASE === 'string' && window.SPOXHUB_API_BASE)
       ? window.SPOXHUB_API_BASE
-      : (typeof window.API_BASE === 'string' ? window.API_BASE : '');
+      : (typeof window.API_BASE === 'string' && window.API_BASE)
+        ? window.API_BASE
+        : window.location.pathname;
     popupBase = popupBase.replace(/\/$/, '');
     if (!/^https?:\/\//i.test(popupBase)) {
       popupBase = window.location.origin + (popupBase.startsWith('/') ? popupBase : '/' + popupBase);
     }
+    // Doppel-Slash-Schutz: /booking// oder /// zurückbauen
+    popupBase = popupBase.replace(/([^:])\/+$/, '$1');
     const url = `${popupBase}/api/auth/oauth-popup?provider=${encodeURIComponent(provider)}`;
     const w = 520, h = 640;
     const x = Math.max(0, (screen.width  - w) / 2);

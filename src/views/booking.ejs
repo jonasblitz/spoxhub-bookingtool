@@ -66,6 +66,10 @@
     const API_BASE = (typeof window.SPOXHUB_API_BASE === 'string' && window.SPOXHUB_API_BASE)
       ? window.SPOXHUB_API_BASE.replace(/\/$/, '')
       : window.location.pathname.replace(/\/$/, '');
+    // Konsistent zum WP-Plugin auch als window-Property setzen — sonst
+    // sieht window.API_BASE in Modul-IIFEs (auth.js, source.js) undefined
+    // und Popup-URLs werden ohne /booking/-Prefix gebaut.
+    window.API_BASE = API_BASE;
 
     // Supabase Public-Werte (Anon-Key ist server-rendered, RLS schützt die Daten)
     window.SUPABASE_URL      = '<%= supabaseUrl %>';
